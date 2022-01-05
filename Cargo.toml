@@ -1,0 +1,8 @@
+[package]
+name = "promcingad"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+yaml-rust = "0.4"
+prometheus-http-query = "0.3"
