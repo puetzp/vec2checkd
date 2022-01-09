@@ -416,6 +416,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "nagios-range"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5d98a78cd5a661d14db16308922a603b0c8944915c15728695a0a93d8d85eae"
+
+[[package]]
 name = "native-tls"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -518,17 +524,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7342d5883fbccae1cc37a2353b09c87c9b0f3afd73f5fb9bba687a1f733b029"
 dependencies = [
  "unicode-xid",
-]
-
-[[package]]
-name = "promcingad"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger",
- "log",
- "prometheus-http-query",
- "yaml-rust",
 ]
 
 [[package]]
@@ -934,6 +929,18 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "vec2checkd"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "log",
+ "nagios-range",
+ "prometheus-http-query",
+ "yaml-rust",
+]
 
 [[package]]
 name = "want"

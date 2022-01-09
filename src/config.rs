@@ -1,5 +1,6 @@
-use crate::types::Mapping;
+use crate::types::{Mapping, ThresholdPair};
 use anyhow::{anyhow, Context};
+use nagios_range::NagiosRange;
 use yaml_rust::yaml::Yaml;
 use yaml_rust::YamlLoader;
 
@@ -36,7 +37,8 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
     let service = items
         .get(&Yaml::from_str("service"))
         .ok_or(anyhow!(
-            "Failed to read mandatory attribute mappings.$name.service from configuration"
+            "Failed to read mandatory attribute mappings.{}.service from configuration",
+            name
         ))?
         .as_str()
         .ok_or(anyhow!(
@@ -45,11 +47,53 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         ))?
         .to_string();
 
+    let thresholds = items
+        .get(&Yaml::from_str("thresholds"))
+        .ok_or(anyhow!(
+            "Failed to read mandatory attribute mappings.{}.thresholds from configuration",
+            name
+        ))?
+        .as_hash()
+        .ok_or(anyhow!(
+            "Failed to parse mappings.{}.thresholds as hash",
+            name
+        ))?;
+
+    let warning = thresholds
+        .get(&Yaml::from_str("warning"))
+        .ok_or(anyhow!(
+            "Failed to read mandatory attribute mappings.{}.thresholds.warning from configuration",
+            name
+        ))?
+        .as_str()
+        .ok_or(anyhow!(
+            "Failed to parse mappings.{}.thresholds.warning as string",
+            name
+        ))?;
+
+    let critical = thresholds
+        .get(&Yaml::from_str("critical"))
+        .ok_or(anyhow!(
+            "Failed to read mandatory attribute mappings.{}.thresholds.critical from configuration",
+            name
+        ))?
+        .as_str()
+        .ok_or(anyhow!(
+            "Failed to parse mappings.{}.thresholds.critical as string",
+            name
+        ))?;
+
+    let threshold_pair = ThresholdPair {
+        warning: NagiosRange::from(warning)?,
+        critical: NagiosRange::from(critical)?,
+    };
+
     Ok(Mapping {
         name,
         query,
         host,
         service,
+        thresholds: threshold_pair,
     })
 }
 
