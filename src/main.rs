@@ -19,5 +19,6 @@ mappings:
     let mappings: Vec<Mapping> = config::parse_mappings_from_config(s)
         .with_context(|| "An error occurred while parsing the configuration")?;
 
+    println!("{:?}", mappings);
     Ok(())
 }

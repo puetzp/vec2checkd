@@ -48,10 +48,18 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         .to_string();
 
     let thresholds = match items.get(&Yaml::from_str("thresholds")) {
-        Some(t) => Some(t.as_hash().ok_or(anyhow!(
-            "Failed to parse mappings.{}.thresholds as hash",
-            name
-        ))?),
+        Some(t) => {
+            let t_hash = t.as_hash().ok_or(anyhow!(
+                "Failed to parse mappings.{}.thresholds as hash",
+                name
+            ))?;
+
+            if t_hash.is_empty() {
+                None
+            } else {
+                Some(t_hash)
+            }
+        }
         None => None,
     };
 
