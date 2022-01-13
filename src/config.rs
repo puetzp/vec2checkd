@@ -47,45 +47,41 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         ))?
         .to_string();
 
-    let thresholds = items
-        .get(&Yaml::from_str("thresholds"))
-        .ok_or(anyhow!(
-            "Failed to read mandatory attribute mappings.{}.thresholds from configuration",
-            name
-        ))?
-        .as_hash()
-        .ok_or(anyhow!(
+    let thresholds = match items.get(&Yaml::from_str("thresholds")) {
+        Some(t) => Some(t.as_hash().ok_or(anyhow!(
             "Failed to parse mappings.{}.thresholds as hash",
             name
-        ))?;
+        ))?),
+        None => None,
+    };
 
-    let warning = thresholds
-        .get(&Yaml::from_str("warning"))
-        .ok_or(anyhow!(
-            "Failed to read mandatory attribute mappings.{}.thresholds.warning from configuration",
-            name
-        ))?
-        .as_str()
-        .ok_or(anyhow!(
-            "Failed to parse mappings.{}.thresholds.warning as string",
-            name
-        ))?;
+    let threshold_pair = match thresholds {
+        Some(t) => {
+            let warning = match t.get(&Yaml::from_str("warning")) {
+                Some(w) => {
+                    let w_raw = w.as_str().ok_or(anyhow!(
+                        "Failed to parse mappings.{}.thresholds.warning as string",
+                        name
+                    ))?;
+                    Some(NagiosRange::from(w_raw)?)
+                }
+                None => None,
+            };
 
-    let critical = thresholds
-        .get(&Yaml::from_str("critical"))
-        .ok_or(anyhow!(
-            "Failed to read mandatory attribute mappings.{}.thresholds.critical from configuration",
-            name
-        ))?
-        .as_str()
-        .ok_or(anyhow!(
-            "Failed to parse mappings.{}.thresholds.critical as string",
-            name
-        ))?;
+            let critical = match t.get(&Yaml::from_str("critical")) {
+                Some(c) => {
+                    let c_raw = c.as_str().ok_or(anyhow!(
+                        "Failed to parse mappings.{}.thresholds.critical as string",
+                        name
+                    ))?;
+                    Some(NagiosRange::from(c_raw)?)
+                }
+                None => None,
+            };
 
-    let threshold_pair = ThresholdPair {
-        warning: NagiosRange::from(warning)?,
-        critical: NagiosRange::from(critical)?,
+            Some(ThresholdPair { warning, critical })
+        }
+        None => None,
     };
 
     Ok(Mapping {
