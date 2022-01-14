@@ -1,9 +1,8 @@
 use crate::error::*;
 use crate::types::{Mapping, ThresholdPair};
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use nagios_range::NagiosRange;
 use yaml_rust::yaml::Yaml;
-use yaml_rust::YamlLoader;
 
 fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyhow::Error> {
     let name = mapping.0.as_str().ok_or(ParseFieldError {
@@ -132,26 +131,4 @@ pub(crate) fn parse_mappings<'a>(
 
 pub(crate) fn parse_yaml(source: &str) -> Result<Vec<Yaml>, yaml_rust::scanner::ScanError> {
     yaml_rust::yaml::YamlLoader::load_from_str(source)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::*;
-
-    #[test]
-    fn test_parse_mappings() {
-        let s = "
----
-mappings:
-  cpu_idle_percentage:
-    query: 'sum(node_cpu_seconds_total{mode=\"idle\"}) / sum(node_cpu_seconds_total)'
-    host: 'Kubernetes Test'
-    service: 'CPU idle percentage'
-    interval: '1m'
-";
-        let result = vec![Mapping {
-            name: String::from(),
-        }];
-    }
 }

@@ -5,7 +5,6 @@ mod types;
 use crate::types::Mapping;
 use anyhow::Context;
 use log::info;
-use yaml_rust::yaml::YamlLoader;
 
 fn main() -> Result<(), anyhow::Error> {
     env_logger::init();

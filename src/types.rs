@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use nagios_range::NagiosRange;
 
 #[derive(Debug)]
