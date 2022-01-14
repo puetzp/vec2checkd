@@ -1,4 +1,5 @@
 mod config;
+mod error;
 mod types;
 
 use crate::types::Mapping;
@@ -16,7 +17,7 @@ mappings:
     service: 'CPU idle percentage'
     interval: '1m'
 ";
-    let mappings: Vec<Mapping> = config::parse_mappings_from_config(s)
+    let mappings: Option<Vec<Mapping>> = config::parse_mappings(s)
         .with_context(|| "An error occurred while parsing the configuration")?;
 
     println!("{:?}", mappings);
