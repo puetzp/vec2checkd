@@ -5,15 +5,11 @@ use nagios_range::NagiosRange;
 use yaml_rust::yaml::Yaml;
 use yaml_rust::YamlLoader;
 
-fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
-    let name = mapping
-        .0
-        .as_str()
-        .ok_or(ParseFieldError {
-            field: format!("mappings.$name"),
-            kind: "string",
-        })?
-        .to_string();
+fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyhow::Error> {
+    let name = mapping.0.as_str().ok_or(ParseFieldError {
+        field: format!("mappings.$name"),
+        kind: "string",
+    })?;
 
     let items = mapping.1.as_hash().ok_or(ParseFieldError {
         field: format!("mappings.{}", name),
@@ -29,8 +25,7 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         .ok_or(ParseFieldError {
             field: format!("mappings.{}.query", name),
             kind: "string",
-        })?
-        .to_string();
+        })?;
 
     let host = items
         .get(&Yaml::from_str("host"))
@@ -41,8 +36,7 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         .ok_or(ParseFieldError {
             field: format!("mappings.{}.host", name),
             kind: "string",
-        })?
-        .to_string();
+        })?;
 
     let service = items
         .get(&Yaml::from_str("service"))
@@ -53,8 +47,7 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         .ok_or(ParseFieldError {
             field: format!("mappings.{}.service", name),
             kind: "string",
-        })?
-        .to_string();
+        })?;
 
     let thresholds = match items.get(&Yaml::from_str("thresholds")) {
         Some(t) => {
@@ -110,13 +103,12 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
     })
 }
 
-pub(crate) fn parse_mappings(config: &str) -> Result<Option<Vec<Mapping>>, anyhow::Error> {
-    let docs = YamlLoader::load_from_str(config)?;
-    let doc = &docs[0];
-
+pub(crate) fn parse_mappings<'a>(
+    config: &'a [Yaml],
+) -> Result<Option<Vec<Mapping<'a>>>, anyhow::Error> {
     let mut mappings: Vec<Mapping> = vec![];
 
-    match doc
+    match config[0]
         .as_hash()
         .ok_or(anyhow!("failed to parse configuration as hash"))?
         .get(&Yaml::from_str("mappings"))
@@ -135,5 +127,31 @@ pub(crate) fn parse_mappings(config: &str) -> Result<Option<Vec<Mapping>>, anyho
             Ok(Some(mappings))
         }
         None => Ok(None),
+    }
+}
+
+pub(crate) fn parse_yaml(source: &str) -> Result<Vec<Yaml>, yaml_rust::scanner::ScanError> {
+    yaml_rust::yaml::YamlLoader::load_from_str(source)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::*;
+
+    #[test]
+    fn test_parse_mappings() {
+        let s = "
+---
+mappings:
+  cpu_idle_percentage:
+    query: 'sum(node_cpu_seconds_total{mode=\"idle\"}) / sum(node_cpu_seconds_total)'
+    host: 'Kubernetes Test'
+    service: 'CPU idle percentage'
+    interval: '1m'
+";
+        let result = vec![Mapping {
+            name: String::from(),
+        }];
     }
 }

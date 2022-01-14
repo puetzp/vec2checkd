@@ -5,6 +5,7 @@ mod types;
 use crate::types::Mapping;
 use anyhow::Context;
 use log::info;
+use yaml_rust::yaml::YamlLoader;
 
 fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
@@ -17,9 +18,15 @@ mappings:
     service: 'CPU idle percentage'
     interval: '1m'
 ";
-    let mappings: Option<Vec<Mapping>> = config::parse_mappings(s)
-        .with_context(|| "An error occurred while parsing the configuration")?;
+    let config = config::parse_yaml(s).with_context(|| "failed to parse configuration")?;
 
+    let mappings: Option<Vec<Mapping>> = config::parse_mappings(&config)
+        .with_context(|| "failed configuration to parse mappings from configuration")?;
+
+    if mappings.is_none() {
+        info!("No mappings configured. Exiting.");
+        std::process::exit(0);
+    }
     println!("{:?}", mappings);
     Ok(())
 }
