@@ -5,12 +5,15 @@ mod types;
 use crate::types::Mapping;
 use anyhow::Context;
 use log::info;
+use prometheus_http_query::{Client, InstantVector};
 use std::fs::File;
 use std::io::Read;
+use std::sync::Arc;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/vec2checkd/config.yaml";
 
-fn main() -> Result<(), anyhow::Error> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
 
     info!("Parsing configuration from '{}'", DEFAULT_CONFIG_PATH);
@@ -34,5 +37,21 @@ fn main() -> Result<(), anyhow::Error> {
         std::process::exit(0);
     }
 
+    let prom_client = Arc::new(Client::default());
+
+    loop {
+        for mapping in mappings.iter() {
+            let client = prom_client.clone();
+            let query = mapping.query.to_string();
+            let handle = tokio::spawn(async move {
+                let vector = InstantVector(query);
+                return client.query(vector, None, None).await.unwrap();
+            });
+            match handle.await {
+                Ok(r) => println!("{:?}", r),
+                Err(e) => println!("{:?}", e),
+            };
+        }
+    }
     Ok(())
 }
