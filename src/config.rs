@@ -93,6 +93,21 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
         None => None,
     };
 
+    let interval: u16 = match items.get(&Yaml::from_str("interval")) {
+        Some(i) => {
+            let num = i.as_i64().ok_or(ParseFieldError {
+                field: format!("mappings.{}.interval", name),
+                kind: "number",
+            })?;
+
+            u16::try_from(num).map_err(|_| ParseFieldError {
+                field: format!("mappings.{}.interval", name),
+                kind: "number",
+            })?
+        }
+        None => 300,
+    };
+
     Ok(Mapping {
         name,
         query,
@@ -102,9 +117,7 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
     })
 }
 
-pub(crate) fn parse_mappings<'a>(
-    config: &'a [Yaml],
-) -> Result<Option<Vec<Mapping<'a>>>, anyhow::Error> {
+pub(crate) fn parse_mappings<'a>(config: &'a [Yaml]) -> Result<Vec<Mapping<'a>>, anyhow::Error> {
     let mut mappings: Vec<Mapping> = vec![];
 
     match config[0]
@@ -123,9 +136,9 @@ pub(crate) fn parse_mappings<'a>(
                 mappings.push(parsed);
             }
 
-            Ok(Some(mappings))
+            Ok(mappings)
         }
-        None => Ok(None),
+        None => Ok(vec![]),
     }
 }
 

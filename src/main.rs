@@ -26,10 +26,10 @@ fn main() -> Result<(), anyhow::Error> {
 
     let config = config::parse_yaml(&raw_conf).with_context(|| "failed to parse configuration")?;
 
-    let mappings: Option<Vec<Mapping>> = config::parse_mappings(&config)
+    let mappings: Vec<Mapping> = config::parse_mappings(&config)
         .with_context(|| "failed configuration to parse mappings from configuration")?;
 
-    if mappings.is_none() {
+    if mappings.is_empty() {
         info!("No mappings configured. Exiting.");
         std::process::exit(0);
     }
