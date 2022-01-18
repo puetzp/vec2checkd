@@ -1,4 +1,5 @@
 use nagios_range::NagiosRange;
+use prometheus_http_query::Scheme;
 use std::time::{Duration, Instant};
 
 #[derive(Debug)]
@@ -16,4 +17,10 @@ pub(crate) struct Mapping<'a> {
     pub service: &'a str,
     pub interval: Duration,
     pub last_apply: Instant,
+}
+
+pub(crate) struct PromConfig {
+    pub scheme: Scheme,
+    pub host: String,
+    pub port: u16,
 }

@@ -1,9 +1,10 @@
 use crate::error::*;
-use crate::types::{Mapping, ThresholdPair};
+use crate::types::{Mapping, PromConfig, ThresholdPair};
 use anyhow::anyhow;
 use nagios_range::NagiosRange;
+use prometheus_http_query::Scheme;
 use std::time::{Duration, Instant};
-use yaml_rust::yaml::Yaml;
+use yaml_rust::yaml::{Hash, Yaml};
 
 fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyhow::Error> {
     let name = mapping.0.as_str().ok_or(ParseFieldError {
@@ -121,14 +122,10 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
     })
 }
 
-pub(crate) fn parse_mappings<'a>(config: &'a [Yaml]) -> Result<Vec<Mapping<'a>>, anyhow::Error> {
+pub(crate) fn parse_mappings<'a>(config: &'a Hash) -> Result<Vec<Mapping<'a>>, anyhow::Error> {
     let mut mappings: Vec<Mapping> = vec![];
 
-    match config[0]
-        .as_hash()
-        .ok_or(anyhow!("failed to parse configuration as hash"))?
-        .get(&Yaml::from_str("mappings"))
-    {
+    match config.get(&Yaml::from_str("mappings")) {
         Some(m_raw) => {
             let mapping_hash = m_raw.as_hash().ok_or(ParseFieldError {
                 field: String::from("mappings"),
@@ -146,6 +143,62 @@ pub(crate) fn parse_mappings<'a>(config: &'a [Yaml]) -> Result<Vec<Mapping<'a>>,
     }
 }
 
-pub(crate) fn parse_yaml(source: &str) -> Result<Vec<Yaml>, yaml_rust::scanner::ScanError> {
-    yaml_rust::yaml::YamlLoader::load_from_str(source)
+pub(crate) fn parse_prom_section(config: &Hash) -> Result<Option<PromConfig>, anyhow::Error> {
+    let section = match config.get(&Yaml::from_str("prometheus")) {
+        Some(prometheus) => prometheus.as_hash().ok_or(ParseFieldError {
+            field: String::from("prometheus"),
+            kind: "hash",
+        })?,
+        None => return Ok(None),
+    };
+
+    let scheme = match section
+        .get(&Yaml::from_str("scheme"))
+        .unwrap_or(&Yaml::from_str("http"))
+        .as_str()
+        .ok_or(ParseFieldError {
+            field: String::from("prometheus.scheme"),
+            kind: "string",
+        })? {
+        "http" => Scheme::Http,
+        "https" => Scheme::Https,
+        _ => {
+            return Err(anyhow!(
+                "invalid value in 'prometheus.scheme', must be either 'http' or 'https'"
+            ))
+        }
+    };
+
+    let host = section
+        .get(&Yaml::from_str("host"))
+        .unwrap_or(&Yaml::from_str("localhost"))
+        .as_str()
+        .ok_or(ParseFieldError {
+            field: String::from("prometheus.host"),
+            kind: "string",
+        })?
+        .to_string();
+
+    let port = section
+        .get(&Yaml::from_str("port"))
+        .unwrap_or(&Yaml::Integer(9990))
+        .as_i64()
+        .ok_or(ParseFieldError {
+            field: String::from("prometheus.port"),
+            kind: "number",
+        })?;
+
+    let port = u16::try_from(port).map_err(|_| ParseFieldError {
+        field: String::from("prometheus.port"),
+        kind: "number",
+    })?;
+
+    Ok(Some(PromConfig { scheme, host, port }))
+}
+
+pub(crate) fn parse_yaml(source: &str) -> Result<Hash, anyhow::Error> {
+    yaml_rust::yaml::YamlLoader::load_from_str(source)?[0]
+        .clone()
+        .into_hash()
+        .ok_or(anyhow!("failed to parse configuration as hash"))
 }

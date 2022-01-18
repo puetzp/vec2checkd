@@ -33,18 +33,36 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut raw_conf = String::new();
     file.read_to_string(&mut raw_conf)?;
 
-    let config = config::parse_yaml(&raw_conf).with_context(|| "failed to parse configuration")?;
+    let config =
+        config::parse_yaml(&raw_conf).with_context(|| "failed to parse configuration file")?;
 
+    info!("Read mappings section from configuration");
     let mut mappings: Vec<Mapping> = config::parse_mappings(&config)
         .with_context(|| "failed configuration to parse mappings from configuration")?;
 
     if mappings.is_empty() {
-        info!("No mappings configured. Exiting.");
+        info!("No mappings configured. Shutdown.");
         std::process::exit(0);
     }
 
-    info!("Initialize Prometheus client");
-    let prom_client = Client::default();
+    let prom_client = {
+        info!("Read Prometheus section from configuration");
+        match config::parse_prom_section(&config)
+            .with_context(|| "failed to parse Prometheus section from configuration")?
+        {
+            Some(c) => {
+                info!(
+                    "Initialize Prometheus client using custom connection string '{}://{}:{}'",
+                    c.scheme, c.host, c.port
+                );
+                Client::new(c.scheme, &c.host, c.port)
+            }
+            None => {
+                info!("Initialize Prometheus client using default connection string 'http://localhost:9990'");
+                Client::default()
+            }
+        }
+    };
 
     info!("Enter the main check loop");
     loop {
@@ -69,9 +87,12 @@ async fn main() -> Result<(), anyhow::Error> {
                 mapping.name, now
             );
             mapping.last_apply = now;
+
             let client = prom_client.clone();
             let query = mapping.query.to_string();
+
             debug!("{}: execute PromQL query '{}'", mapping.name, query);
+
             let query_result = tokio::spawn(async move {
                 let vector = InstantVector(query);
                 return client.query(vector, None, None).await;
