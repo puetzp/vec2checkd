@@ -4,7 +4,7 @@ mod types;
 
 use crate::types::Mapping;
 use anyhow::Context;
-use log::info;
+use log::{debug, error, info};
 use prometheus_http_query::{Client, InstantVector};
 use std::fs::File;
 use std::io::Read;
@@ -12,11 +12,17 @@ use std::time::{Duration, Instant};
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/vec2checkd/config.yaml";
 
+fn compute_delta(mapping: &Mapping) -> Duration {
+    mapping
+        .interval
+        .saturating_sub(mapping.last_apply.elapsed())
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
 
-    info!("Parsing configuration from '{}'", DEFAULT_CONFIG_PATH);
+    info!("Parse configuration from '{}'", DEFAULT_CONFIG_PATH);
     let mut file = File::open(DEFAULT_CONFIG_PATH).with_context(|| {
         format!(
             "failed to read configuration file '{}'",
@@ -37,53 +43,49 @@ async fn main() -> Result<(), anyhow::Error> {
         std::process::exit(0);
     }
 
+    info!("Initialize Prometheus client");
     let prom_client = Client::default();
 
+    info!("Enter the main check loop");
     loop {
         let sleep_secs = {
-            let now = Instant::now();
             mappings
                 .iter()
-                .map(|mapping| {
-                    let elapsed = now.saturating_duration_since(mapping.last_apply);
-                    mapping.interval.saturating_sub(elapsed)
-                })
+                .map(|mapping| compute_delta(&mapping))
                 .min()
                 .unwrap()
         };
 
-        println!("Sleeping for: {:?}", sleep_secs);
         std::thread::sleep(sleep_secs);
 
-        let now = Instant::now();
-        mappings
+        for mapping in mappings
             .iter_mut()
-            .filter(|mapping| {
-                let delta = {
-                    let elapsed = now.saturating_duration_since(mapping.last_apply);
-                    mapping.interval.saturating_sub(elapsed)
-                };
-                delta.as_secs() <= 1
-            })
-            .for_each(|mapping| {
-                mapping.last_apply = Instant::now();
-                println!("Virtual run of: {}", mapping.name);
-            });
-
-        /*
-        for mapping in mappings.iter() {
+            .filter(|mapping| compute_delta(&mapping).as_secs() <= 1)
+        {
+            info!("Process mapping '{}'", mapping.name);
+            let now = Instant::now();
+            debug!(
+                "{}: update last application clock time, set to {:?}",
+                mapping.name, now
+            );
+            mapping.last_apply = now;
             let client = prom_client.clone();
             let query = mapping.query.to_string();
-            let handle = tokio::spawn(async move {
+            debug!("{}: execute PromQL query '{}'", mapping.name, query);
+            let query_result = tokio::spawn(async move {
                 let vector = InstantVector(query);
-                return client.query(vector, None, None).await.unwrap();
-            });
-            match handle.await {
-                Ok(r) => println!("{:?}", r),
-                Err(e) => println!("{:?}", e),
+                return client.query(vector, None, None).await;
+            })
+            .await?;
+
+            let vector = match query_result {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{}: failed to execute PromQL query: {}", mapping.name, e);
+                    continue;
+                }
             };
         }
-         */
     }
     Ok(())
 }
