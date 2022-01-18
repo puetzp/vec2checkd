@@ -2,6 +2,7 @@ use crate::error::*;
 use crate::types::{Mapping, ThresholdPair};
 use anyhow::anyhow;
 use nagios_range::NagiosRange;
+use std::time::{Duration, Instant};
 use yaml_rust::yaml::Yaml;
 
 fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyhow::Error> {
@@ -93,19 +94,20 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
         None => None,
     };
 
-    let interval: u16 = match items.get(&Yaml::from_str("interval")) {
+    let interval: Duration = match items.get(&Yaml::from_str("interval")) {
         Some(i) => {
             let num = i.as_i64().ok_or(ParseFieldError {
                 field: format!("mappings.{}.interval", name),
                 kind: "number",
             })?;
 
-            u16::try_from(num).map_err(|_| ParseFieldError {
+            let conv = u16::try_from(num).map_err(|_| ParseFieldError {
                 field: format!("mappings.{}.interval", name),
                 kind: "number",
-            })?
+            })?;
+            Duration::from_secs(conv as u64)
         }
-        None => 300,
+        None => Duration::from_secs(300),
     };
 
     Ok(Mapping {
@@ -113,7 +115,9 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
         query,
         host,
         service,
+        interval,
         thresholds: threshold_pair,
+        last_apply: Instant::now(),
     })
 }
 

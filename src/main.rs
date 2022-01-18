@@ -8,7 +8,7 @@ use log::info;
 use prometheus_http_query::{Client, InstantVector};
 use std::fs::File;
 use std::io::Read;
-use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/vec2checkd/config.yaml";
 
@@ -29,7 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let config = config::parse_yaml(&raw_conf).with_context(|| "failed to parse configuration")?;
 
-    let mappings: Vec<Mapping> = config::parse_mappings(&config)
+    let mut mappings: Vec<Mapping> = config::parse_mappings(&config)
         .with_context(|| "failed configuration to parse mappings from configuration")?;
 
     if mappings.is_empty() {
@@ -37,9 +37,40 @@ async fn main() -> Result<(), anyhow::Error> {
         std::process::exit(0);
     }
 
-    let prom_client = Arc::new(Client::default());
+    let prom_client = Client::default();
 
     loop {
+        let sleep_secs = {
+            let now = Instant::now();
+            mappings
+                .iter()
+                .map(|mapping| {
+                    let elapsed = now.saturating_duration_since(mapping.last_apply);
+                    mapping.interval.saturating_sub(elapsed)
+                })
+                .min()
+                .unwrap()
+        };
+
+        println!("Sleeping for: {:?}", sleep_secs);
+        std::thread::sleep(sleep_secs);
+
+        let now = Instant::now();
+        mappings
+            .iter_mut()
+            .filter(|mapping| {
+                let delta = {
+                    let elapsed = now.saturating_duration_since(mapping.last_apply);
+                    mapping.interval.saturating_sub(elapsed)
+                };
+                delta.as_secs() <= 1
+            })
+            .for_each(|mapping| {
+                mapping.last_apply = Instant::now();
+                println!("Virtual run of: {}", mapping.name);
+            });
+
+        /*
         for mapping in mappings.iter() {
             let client = prom_client.clone();
             let query = mapping.query.to_string();
@@ -52,6 +83,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 Err(e) => println!("{:?}", e),
             };
         }
+         */
     }
     Ok(())
 }

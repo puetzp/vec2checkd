@@ -1,4 +1,5 @@
 use nagios_range::NagiosRange;
+use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub(crate) struct ThresholdPair {
@@ -13,4 +14,6 @@ pub(crate) struct Mapping<'a> {
     pub thresholds: Option<ThresholdPair>,
     pub host: &'a str,
     pub service: &'a str,
+    pub interval: Duration,
+    pub last_apply: Instant,
 }
