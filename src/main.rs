@@ -52,13 +52,13 @@ async fn main() -> Result<(), anyhow::Error> {
         {
             Some(c) => {
                 info!(
-                    "Initialize Prometheus client using custom connection string '{}://{}:{}'",
+                    "Initialize Prometheus client using base URL '{}://{}:{}'",
                     c.scheme, c.host, c.port
                 );
                 Client::new(c.scheme, &c.host, c.port)
             }
             None => {
-                info!("Initialize Prometheus client using default connection string 'http://localhost:9990'");
+                info!("Initialize Prometheus client using base URL 'http://localhost:9090'");
                 Client::default()
             }
         }
