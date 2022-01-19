@@ -1,5 +1,6 @@
 use crate::types::IcingaConfig;
 use crate::types::{Mapping, ThresholdPair};
+use log::debug;
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
 use std::fs::File;
@@ -15,13 +16,19 @@ impl IcingaClient {
     pub fn new(config: &IcingaConfig) -> Result<Self, anyhow::Error> {
         let ca_cert = {
             let mut buf = Vec::new();
+            debug!("Read CA certificate (PEM) from {:?}", config.ca_cert);
             File::open(&config.ca_cert)?.read_to_end(&mut buf)?;
             Certificate::from_pem(&buf)?
         };
 
         let identity = {
             let mut buf = Vec::new();
+            debug!(
+                "Read client certificate (PEM) from {:?}",
+                config.client_cert
+            );
             File::open(&config.client_cert)?.read_to_end(&mut buf)?;
+            debug!("Read client key (PEM) from {:?}", config.client_key);
             File::open(&config.client_key)?.read_to_end(&mut buf)?;
             Identity::from_pem(&buf)?
         };
@@ -31,13 +38,14 @@ impl IcingaClient {
             .add_root_certificate(ca_cert)
             .build()?;
 
-        Ok(IcingaClient {
-            client,
-            url: format!(
-                "{}://{}:{}/v1/actions/process-check-result",
-                config.scheme, config.host, config.port
-            ),
-        })
+        let url = format!(
+            "{}://{}:{}/v1/actions/process-check-result",
+            config.scheme, config.host, config.port
+        );
+
+        debug!("Set API URL to send passive check results to {}", url);
+
+        Ok(IcingaClient { client, url })
     }
 
     pub async fn send(&self, payload: &IcingaPayload) -> Result<(), anyhow::Error> {
