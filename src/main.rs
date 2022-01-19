@@ -73,14 +73,11 @@ async fn main() -> Result<(), anyhow::Error> {
             .with_context(|| "failed to parse Icinga section from configuration")?
         {
             Some(c) => {
-                info!(
-                    "Initialize Icinga API client using base URL '{}://{}:{}'",
-                    c.scheme, c.host, c.port
-                );
+                info!("Initialize Icinga API client using client certificate authentication",);
                 IcingaClient::new(&c).with_context(|| "failed to initialize Icinga API client")?
             }
             None => {
-                info!("Initialize Icinga API client using base URL 'http://127.0.0.1:5665'");
+                info!("Initialize default Icinga API client without authentication");
                 IcingaClient::default()
             }
         }

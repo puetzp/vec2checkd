@@ -36,6 +36,7 @@ impl IcingaClient {
         let client = reqwest::Client::builder()
             .identity(identity)
             .add_root_certificate(ca_cert)
+            .min_tls_version(reqwest::tls::Version::TLS_1_2)
             .build()?;
 
         let url = format!(
