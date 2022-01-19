@@ -171,6 +171,20 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             let payload = icinga::build_payload(&mapping, value, exit_status);
+
+            match icinga_client.send(&payload).await {
+                Ok(_) => debug!(
+                    "{}: passive check result was successfully send to Icinga",
+                    mapping.name
+                ),
+                Err(e) => {
+                    error!(
+                        "{}: failed to send passive check result to Icinga: {}",
+                        mapping.name, e
+                    );
+                    continue;
+                }
+            }
         }
     }
     Ok(())

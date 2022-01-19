@@ -41,13 +41,14 @@ impl IcingaClient {
     }
 
     pub async fn send(&self, payload: &IcingaPayload) -> Result<(), anyhow::Error> {
-        let body = serde_json::to_string(payload)?;
         self.client
             .post(&self.url)
-            .body(body)
+            .json(payload)
             .header("Accept", "application/json")
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
+
         Ok(())
     }
 }
