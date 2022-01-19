@@ -1,6 +1,9 @@
 use crate::types::IcingaConfig;
 use crate::types::{Mapping, ThresholdPair};
+use reqwest::{Certificate, Identity};
 use serde::Serialize;
+use std::fs::File;
+use std::io::Read;
 
 #[derive(Clone)]
 pub(crate) struct IcingaClient {
@@ -9,14 +12,32 @@ pub(crate) struct IcingaClient {
 }
 
 impl IcingaClient {
-    pub fn new(config: &IcingaConfig) -> Self {
-        IcingaClient {
-            client: reqwest::Client::new(),
+    pub fn new(config: &IcingaConfig) -> Result<Self, anyhow::Error> {
+        let ca_cert = {
+            let mut buf = Vec::new();
+            File::open(&config.ca_cert)?.read_to_end(&mut buf)?;
+            Certificate::from_pem(&buf)?
+        };
+
+        let identity = {
+            let mut buf = Vec::new();
+            File::open(&config.client_cert)?.read_to_end(&mut buf)?;
+            File::open(&config.client_key)?.read_to_end(&mut buf)?;
+            Identity::from_pem(&buf)?
+        };
+
+        let client = reqwest::Client::builder()
+            .identity(identity)
+            .add_root_certificate(ca_cert)
+            .build()?;
+
+        Ok(IcingaClient {
+            client,
             url: format!(
                 "{}://{}:{}/v1/actions/process-check-result",
                 config.scheme, config.host, config.port
             ),
-        }
+        })
     }
 
     pub async fn send(&self, payload: &IcingaPayload) -> Result<(), anyhow::Error> {
