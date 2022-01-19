@@ -24,3 +24,9 @@ pub(crate) struct PromConfig {
     pub host: String,
     pub port: u16,
 }
+
+pub(crate) struct IcingaConfig {
+    pub scheme: Scheme,
+    pub host: String,
+    pub port: u16,
+}

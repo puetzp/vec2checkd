@@ -1,7 +1,9 @@
 mod config;
 mod error;
+mod icinga;
 mod types;
 
+use crate::icinga::IcingaClient;
 use crate::types::Mapping;
 use anyhow::Context;
 use log::{debug, error, info};
@@ -52,14 +54,33 @@ async fn main() -> Result<(), anyhow::Error> {
         {
             Some(c) => {
                 info!(
-                    "Initialize Prometheus client using base URL '{}://{}:{}'",
+                    "Initialize Prometheus API client using base URL '{}://{}:{}'",
                     c.scheme, c.host, c.port
                 );
                 Client::new(c.scheme, &c.host, c.port)
             }
             None => {
-                info!("Initialize Prometheus client using base URL 'http://localhost:9090'");
+                info!("Initialize Prometheus API client using base URL 'http://127.0.0.1:9090'");
                 Client::default()
+            }
+        }
+    };
+
+    let icinga_client = {
+        info!("Read Icinga section from configuration");
+        match config::parse_icinga_section(&config)
+            .with_context(|| "failed to parse Icinga section from configuration")?
+        {
+            Some(c) => {
+                info!(
+                    "Initialize Icinga API client using base URL '{}://{}:{}'",
+                    c.scheme, c.host, c.port
+                );
+                IcingaClient::new(c.scheme, &c.host, c.port)
+            }
+            None => {
+                info!("Initialize Icinga API client using base URL 'http://127.0.0.1:5665'");
+                IcingaClient::default()
             }
         }
     };

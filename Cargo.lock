@@ -949,6 +949,7 @@ dependencies = [
  "log",
  "nagios-range",
  "prometheus-http-query",
+ "reqwest",
  "tokio",
  "yaml-rust",
 ]

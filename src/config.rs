@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::types::{Mapping, PromConfig, ThresholdPair};
+use crate::types::{IcingaConfig, Mapping, PromConfig, ThresholdPair};
 use anyhow::anyhow;
 use nagios_range::NagiosRange;
 use prometheus_http_query::Scheme;
@@ -171,7 +171,7 @@ pub(crate) fn parse_prom_section(config: &Hash) -> Result<Option<PromConfig>, an
 
     let host = section
         .get(&Yaml::from_str("host"))
-        .unwrap_or(&Yaml::from_str("localhost"))
+        .unwrap_or(&Yaml::from_str("127.0.0.1"))
         .as_str()
         .ok_or(ParseFieldError {
             field: String::from("prometheus.host"),
@@ -194,6 +194,59 @@ pub(crate) fn parse_prom_section(config: &Hash) -> Result<Option<PromConfig>, an
     })?;
 
     Ok(Some(PromConfig { scheme, host, port }))
+}
+
+pub(crate) fn parse_icinga_section(config: &Hash) -> Result<Option<IcingaConfig>, anyhow::Error> {
+    let section = match config.get(&Yaml::from_str("icinga")) {
+        Some(icinga) => icinga.as_hash().ok_or(ParseFieldError {
+            field: String::from("icinga"),
+            kind: "hash",
+        })?,
+        None => return Ok(None),
+    };
+
+    let scheme = match section
+        .get(&Yaml::from_str("scheme"))
+        .unwrap_or(&Yaml::from_str("http"))
+        .as_str()
+        .ok_or(ParseFieldError {
+            field: String::from("icinga.scheme"),
+            kind: "string",
+        })? {
+        "http" => Scheme::Http,
+        "https" => Scheme::Https,
+        _ => {
+            return Err(anyhow!(
+                "invalid value in 'icinga.scheme', must be either 'http' or 'https'"
+            ))
+        }
+    };
+
+    let host = section
+        .get(&Yaml::from_str("host"))
+        .unwrap_or(&Yaml::from_str("127.0.0.1"))
+        .as_str()
+        .ok_or(ParseFieldError {
+            field: String::from("icinga.host"),
+            kind: "string",
+        })?
+        .to_string();
+
+    let port = section
+        .get(&Yaml::from_str("port"))
+        .unwrap_or(&Yaml::Integer(5665))
+        .as_i64()
+        .ok_or(ParseFieldError {
+            field: String::from("icinga.port"),
+            kind: "number",
+        })?;
+
+    let port = u16::try_from(port).map_err(|_| ParseFieldError {
+        field: String::from("icinga.port"),
+        kind: "number",
+    })?;
+
+    Ok(Some(IcingaConfig { scheme, host, port }))
 }
 
 pub(crate) fn parse_yaml(source: &str) -> Result<Hash, anyhow::Error> {
