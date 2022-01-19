@@ -164,6 +164,13 @@ async fn main() -> Result<(), anyhow::Error> {
                     continue;
                 }
             };
+
+            let exit_status = match &mapping.thresholds {
+                Some(thresholds) => icinga::determine_exit_status(&thresholds, value),
+                None => 0,
+            };
+
+            let payload = icinga::build_payload(&mapping, value, exit_status);
         }
     }
     Ok(())
