@@ -10,6 +10,7 @@ use log::{debug, error, info, warn};
 use prometheus_http_query::{Client, InstantVector};
 use std::fs::File;
 use std::io::Read;
+use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/vec2checkd/config.yaml";
@@ -148,6 +149,17 @@ async fn main() -> Result<(), anyhow::Error> {
                     error!(
                         "{}: failed to parse PromQL query result as instant vector",
                         mapping.name
+                    );
+                    continue;
+                }
+            };
+
+            let value = match f64::from_str(instant_vector.sample().value()) {
+                Ok(v) => v,
+                Err(e) => {
+                    error!(
+                        "{}: failed to convert value of PromQL query result to float: {}",
+                        mapping.name, e
                     );
                     continue;
                 }
