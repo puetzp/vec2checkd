@@ -5,7 +5,6 @@ mod types;
 
 use crate::icinga::IcingaClient;
 use crate::types::Mapping;
-use anyhow::anyhow;
 use anyhow::Context;
 use log::{debug, error, info, warn};
 use prometheus_http_query::{Client, InstantVector};
@@ -115,11 +114,19 @@ async fn main() -> Result<(), anyhow::Error> {
 
             debug!("{}: execute PromQL query '{}'", mapping.name, query);
 
-            let query_result = tokio::spawn(async move {
+            let join_handle = tokio::spawn(async move {
                 let vector = InstantVector(query);
                 return client.query(vector, None, None).await;
             })
-            .await?;
+            .await;
+
+            let query_result = match join_handle {
+                Ok(result) => result,
+                Err(e) => {
+                    error!("{}: failed to finish task: {}", mapping.name, e);
+                    continue;
+                }
+            };
 
             let abstract_vector = match query_result {
                 Ok(vector) => vector,
