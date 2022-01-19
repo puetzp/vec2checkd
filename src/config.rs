@@ -3,6 +3,7 @@ use crate::types::{IcingaConfig, Mapping, PromConfig, ThresholdPair};
 use anyhow::anyhow;
 use nagios_range::NagiosRange;
 use prometheus_http_query::Scheme;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use yaml_rust::yaml::{Hash, Yaml};
 
@@ -246,7 +247,50 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<Option<IcingaConfig>
         kind: "number",
     })?;
 
-    Ok(Some(IcingaConfig { scheme, host, port }))
+    let ca_cert = section
+        .get(&Yaml::from_str("ca_cert"))
+        .ok_or(MissingFieldError {
+            field: String::from("icinga.ca_cert"),
+        })?
+        .as_str()
+        .ok_or(ParseFieldError {
+            field: String::from("icinga.ca_cert"),
+            kind: "string",
+        })
+        .map(|p| PathBuf::from(p))?;
+
+    let client_cert = section
+        .get(&Yaml::from_str("client_cert"))
+        .ok_or(MissingFieldError {
+            field: String::from("icinga.client_cert"),
+        })?
+        .as_str()
+        .ok_or(ParseFieldError {
+            field: String::from("icinga.client_cert"),
+            kind: "string",
+        })
+        .map(|p| PathBuf::from(p))?;
+
+    let client_key = section
+        .get(&Yaml::from_str("client_key"))
+        .ok_or(MissingFieldError {
+            field: String::from("icinga.client_key"),
+        })?
+        .as_str()
+        .ok_or(ParseFieldError {
+            field: String::from("icinga.client_key"),
+            kind: "string",
+        })
+        .map(|p| PathBuf::from(p))?;
+
+    Ok(Some(IcingaConfig {
+        scheme,
+        host,
+        port,
+        ca_cert,
+        client_cert,
+        client_key,
+    }))
 }
 
 pub(crate) fn parse_yaml(source: &str) -> Result<Hash, anyhow::Error> {

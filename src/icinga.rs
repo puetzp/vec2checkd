@@ -1,5 +1,5 @@
+use crate::types::IcingaConfig;
 use crate::types::{Mapping, ThresholdPair};
-use prometheus_http_query::Scheme;
 use serde::Serialize;
 
 #[derive(Clone)]
@@ -9,12 +9,12 @@ pub(crate) struct IcingaClient {
 }
 
 impl IcingaClient {
-    pub fn new(scheme: Scheme, host: &str, port: u16) -> Self {
+    pub fn new(config: &IcingaConfig) -> Self {
         IcingaClient {
             client: reqwest::Client::new(),
             url: format!(
                 "{}://{}:{}/v1/actions/process-check-result",
-                scheme, host, port
+                config.scheme, config.host, config.port
             ),
         }
     }

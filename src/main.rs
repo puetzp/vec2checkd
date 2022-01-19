@@ -77,7 +77,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     "Initialize Icinga API client using base URL '{}://{}:{}'",
                     c.scheme, c.host, c.port
                 );
-                IcingaClient::new(c.scheme, &c.host, c.port)
+                IcingaClient::new(&c)
             }
             None => {
                 info!("Initialize Icinga API client using base URL 'http://127.0.0.1:5665'");
