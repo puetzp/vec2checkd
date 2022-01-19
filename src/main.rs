@@ -5,8 +5,9 @@ mod types;
 
 use crate::icinga::IcingaClient;
 use crate::types::Mapping;
+use anyhow::anyhow;
 use anyhow::Context;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use prometheus_http_query::{Client, InstantVector};
 use std::fs::File;
 use std::io::Read;
@@ -120,10 +121,27 @@ async fn main() -> Result<(), anyhow::Error> {
             })
             .await?;
 
-            let vector = match query_result {
-                Ok(v) => v,
+            let abstract_vector = match query_result {
+                Ok(vector) => vector,
                 Err(e) => {
                     error!("{}: failed to execute PromQL query: {}", mapping.name, e);
+                    continue;
+                }
+            };
+
+            let instant_vector = match abstract_vector.as_instant() {
+                Some(instant) => match instant.get(0) {
+                    Some(first) => first,
+                    None => {
+                        warn!("{}: the PromQL query result is empty", mapping.name);
+                        continue;
+                    }
+                },
+                None => {
+                    error!(
+                        "{}: failed to parse PromQL query result as instant vector",
+                        mapping.name
+                    );
                     continue;
                 }
             };
