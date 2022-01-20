@@ -120,6 +120,7 @@ pub(crate) struct IcingaPayload {
     exit_status: u8,
     plugin_output: String,
     filter: String,
+    filter_vars: serde_json::Value,
 }
 
 pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u8 {
@@ -139,10 +140,10 @@ pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u
 }
 
 pub(crate) fn build_payload(mapping: &Mapping, value: f64, exit_status: u8) -> IcingaPayload {
-    let filter = format!(
-        "host.name==\"{}\" && service.name==\"{}\"",
-        mapping.host, mapping.service
-    );
+    let filter_vars = serde_json::json!({
+        "hostname": mapping.host,
+        "servicename": mapping.service
+    });
 
     let plugin_output = match exit_status {
         2 => format!("[CRITICAL] {} is {}", mapping.name, value),
@@ -153,8 +154,9 @@ pub(crate) fn build_payload(mapping: &Mapping, value: f64, exit_status: u8) -> I
 
     IcingaPayload {
         obj_type: String::from("Service"),
+        filter: String::from("host.name==hostname && service.name==servicename"),
         exit_status,
         plugin_output,
-        filter,
+        filter_vars,
     }
 }
