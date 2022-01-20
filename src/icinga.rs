@@ -1,7 +1,8 @@
 use crate::types::*;
+use anyhow::bail;
 use log::debug;
 use reqwest::{Certificate, Identity};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
 
@@ -79,9 +80,16 @@ impl IcingaClient {
 
         let request = builder.build()?;
 
-        self.client.execute(request).await?.error_for_status()?;
+        debug!("Send request to Icinga API: {:?}", request);
+        let response = self.client.execute(request).await?;
 
-        Ok(())
+        debug!("Process Icinga API response: {:?}", response);
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let err = response.json::<IcingaApiError>().await?;
+            bail!("HTTP status code {} ({})", err.code, err.status);
+        }
     }
 }
 
@@ -93,6 +101,13 @@ impl Default for IcingaClient {
             basic_auth: None,
         }
     }
+}
+
+#[derive(Deserialize)]
+struct IcingaApiError {
+    #[serde(alias = "error")]
+    code: u16,
+    status: String,
 }
 
 #[derive(Serialize)]
