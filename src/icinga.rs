@@ -68,10 +68,12 @@ impl IcingaClient {
     }
 
     pub async fn send(&self, payload: &IcingaPayload) -> Result<(), anyhow::Error> {
+        let body = serde_json::to_string(payload)?;
+
         let mut builder = self
             .client
             .request(reqwest::Method::POST, &self.url)
-            .json(payload)
+            .body(body.clone())
             .header("Accept", "application/json");
 
         if let Some(auth) = &self.basic_auth {
@@ -80,7 +82,8 @@ impl IcingaClient {
 
         let request = builder.build()?;
 
-        debug!("Send request to Icinga API: {:?}", request);
+        debug!("Send request with parameters: {:?}", request);
+        debug!("Send request with JSON body: {}", body);
         let response = self.client.execute(request).await?;
 
         debug!("Process Icinga API response: {:?}", response);
@@ -112,6 +115,8 @@ struct IcingaApiError {
 
 #[derive(Serialize)]
 pub(crate) struct IcingaPayload {
+    #[serde(rename = "type")]
+    obj_type: String,
     exit_status: u8,
     plugin_output: String,
     filter: String,
@@ -147,6 +152,7 @@ pub(crate) fn build_payload(mapping: &Mapping, value: f64, exit_status: u8) -> I
     };
 
     IcingaPayload {
+        obj_type: String::from("Service"),
         exit_status,
         plugin_output,
         filter,
