@@ -69,18 +69,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let icinga_client = {
         info!("Read Icinga section from configuration");
-        match config::parse_icinga_section(&config)
-            .with_context(|| "failed to parse Icinga section from configuration")?
-        {
-            Some(c) => {
-                info!("Initialize Icinga API client using client certificate authentication",);
-                IcingaClient::new(&c).with_context(|| "failed to initialize Icinga API client")?
-            }
-            None => {
-                info!("Initialize default Icinga API client without authentication");
-                IcingaClient::default()
-            }
-        }
+        let c = config::parse_icinga_section(&config)
+            .with_context(|| "failed to parse Icinga section from configuration")?;
+        info!("Initialize Icinga API client");
+        IcingaClient::new(&c).with_context(|| "failed to initialize Icinga API client")?
     };
 
     info!("Enter the main check loop");
