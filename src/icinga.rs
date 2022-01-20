@@ -30,7 +30,9 @@ impl IcingaClient {
             }
         };
 
-        builder = builder.min_tls_version(reqwest::tls::Version::TLS_1_2);
+        builder = builder
+            .min_tls_version(reqwest::tls::Version::TLS_1_2)
+            .use_rustls_tls();
 
         if let Some(cert) = &config.ca_cert {
             let cert_obj = {
