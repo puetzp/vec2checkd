@@ -15,7 +15,7 @@ pub(crate) struct IcingaClient {
 impl IcingaClient {
     pub fn new(config: &IcingaConfig) -> Result<Self, anyhow::Error> {
         let mut builder = match &config.authentication {
-            IcingaAuth::Basic(auth) => reqwest::Client::builder(),
+            IcingaAuth::Basic(_) => reqwest::Client::builder(),
             IcingaAuth::X509(auth) => {
                 let identity = {
                     let mut buf = Vec::new();
@@ -65,13 +65,19 @@ impl IcingaClient {
     }
 
     pub async fn send(&self, payload: &IcingaPayload) -> Result<(), anyhow::Error> {
-        self.client
-            .post(&self.url)
+        let mut builder = self
+            .client
+            .request(reqwest::Method::POST, &self.url)
             .json(payload)
-            .header("Accept", "application/json")
-            .send()
-            .await?
-            .error_for_status()?;
+            .header("Accept", "application/json");
+
+        if let Some(auth) = &self.basic_auth {
+            builder = builder.basic_auth(&auth.username, Some(&auth.password));
+        }
+
+        let request = builder.build()?;
+
+        self.client.execute(request).await?.error_for_status()?;
 
         Ok(())
     }
