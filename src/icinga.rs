@@ -9,12 +9,13 @@ use std::io::Read;
 pub(crate) struct IcingaClient {
     client: reqwest::Client,
     url: String,
+    basic_auth: Option<IcingaBasicAuth>,
 }
 
 impl IcingaClient {
     pub fn new(config: &IcingaConfig) -> Result<Self, anyhow::Error> {
-        let mut builder = match config.authentication {
-            IcingaAuth::Basic => {}
+        let mut builder = match &config.authentication {
+            IcingaAuth::Basic(auth) => reqwest::Client::builder(),
             IcingaAuth::X509(auth) => {
                 let identity = {
                     let mut buf = Vec::new();
@@ -31,7 +32,7 @@ impl IcingaClient {
 
         builder = builder.min_tls_version(reqwest::tls::Version::TLS_1_2);
 
-        if let Some(cert) = config.ca_cert {
+        if let Some(cert) = &config.ca_cert {
             let cert_obj = {
                 let mut buf = Vec::new();
                 debug!("Read CA certificate (PEM) from {:?}", cert);
@@ -51,7 +52,16 @@ impl IcingaClient {
 
         debug!("Set API URL to send passive check results to {}", url);
 
-        Ok(IcingaClient { client, url })
+        let basic_auth = match &config.authentication {
+            IcingaAuth::Basic(auth) => Some(auth.clone()),
+            IcingaAuth::X509(_) => None,
+        };
+
+        Ok(IcingaClient {
+            client,
+            url,
+            basic_auth,
+        })
     }
 
     pub async fn send(&self, payload: &IcingaPayload) -> Result<(), anyhow::Error> {
@@ -72,6 +82,7 @@ impl Default for IcingaClient {
         IcingaClient {
             client: reqwest::Client::new(),
             url: String::from("http://127.0.0.1:5665/v1/actions/process-check-result"),
+            basic_auth: None,
         }
     }
 }

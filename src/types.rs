@@ -39,6 +39,7 @@ pub(crate) enum IcingaAuth {
     X509(IcingaX509Auth),
 }
 
+#[derive(Clone)]
 pub(crate) struct IcingaBasicAuth {
     pub username: String,
     pub password: String,
