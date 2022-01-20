@@ -30,6 +30,7 @@ pub(crate) struct IcingaConfig {
     pub scheme: Scheme,
     pub host: String,
     pub port: u16,
+    pub ca_cert: Option<PathBuf>,
     pub authentication: IcingaAuth,
 }
 
@@ -44,7 +45,6 @@ pub(crate) struct IcingaBasicAuth {
 }
 
 pub(crate) struct IcingaX509Auth {
-    pub ca_cert: PathBuf,
     pub client_cert: PathBuf,
     pub client_key: PathBuf,
 }

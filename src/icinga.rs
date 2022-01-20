@@ -1,5 +1,4 @@
-use crate::types::IcingaConfig;
-use crate::types::{Mapping, ThresholdPair};
+use crate::types::*;
 use log::debug;
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
@@ -14,30 +13,36 @@ pub(crate) struct IcingaClient {
 
 impl IcingaClient {
     pub fn new(config: &IcingaConfig) -> Result<Self, anyhow::Error> {
-        let ca_cert = {
-            let mut buf = Vec::new();
-            debug!("Read CA certificate (PEM) from {:?}", config.ca_cert);
-            File::open(&config.ca_cert)?.read_to_end(&mut buf)?;
-            Certificate::from_pem(&buf)?
+        let mut builder = match config.authentication {
+            IcingaAuth::Basic => {}
+            IcingaAuth::X509(auth) => {
+                let identity = {
+                    let mut buf = Vec::new();
+                    debug!("Read client certificate (PEM) from {:?}", auth.client_cert);
+                    File::open(&auth.client_cert)?.read_to_end(&mut buf)?;
+                    debug!("Read client key (PEM) from {:?}", auth.client_key);
+                    File::open(&auth.client_key)?.read_to_end(&mut buf)?;
+                    Identity::from_pem(&buf)?
+                };
+
+                reqwest::Client::builder().identity(identity)
+            }
         };
 
-        let identity = {
-            let mut buf = Vec::new();
-            debug!(
-                "Read client certificate (PEM) from {:?}",
-                config.client_cert
-            );
-            File::open(&config.client_cert)?.read_to_end(&mut buf)?;
-            debug!("Read client key (PEM) from {:?}", config.client_key);
-            File::open(&config.client_key)?.read_to_end(&mut buf)?;
-            Identity::from_pem(&buf)?
+        builder = builder.min_tls_version(reqwest::tls::Version::TLS_1_2);
+
+        if let Some(cert) = config.ca_cert {
+            let cert_obj = {
+                let mut buf = Vec::new();
+                debug!("Read CA certificate (PEM) from {:?}", cert);
+                File::open(&cert)?.read_to_end(&mut buf)?;
+                Certificate::from_pem(&buf)?
+            };
+
+            builder = builder.add_root_certificate(cert_obj);
         };
 
-        let client = reqwest::Client::builder()
-            .identity(identity)
-            .add_root_certificate(ca_cert)
-            .min_tls_version(reqwest::tls::Version::TLS_1_2)
-            .build()?;
+        let client = builder.build()?;
 
         let url = format!(
             "{}://{}:{}/v1/actions/process-check-result",

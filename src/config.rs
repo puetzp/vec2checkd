@@ -248,6 +248,18 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
         kind: "number",
     })?;
 
+    let ca_cert = match section.get(&Yaml::from_str("ca_cert")) {
+        Some(cert) => Some(
+            cert.as_str()
+                .ok_or(ParseFieldError {
+                    field: String::from("icinga.ca_cert"),
+                    kind: "string",
+                })
+                .map(|p| PathBuf::from(p))?,
+        ),
+        None => None,
+    };
+
     let auth_hash = section
         .get(&Yaml::from_str("authentication"))
         .ok_or(MissingFieldError {
@@ -299,18 +311,6 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
             IcingaAuth::Basic(IcingaBasicAuth { username, password })
         }
         "x509" => {
-            let ca_cert = auth_hash
-                .get(&Yaml::from_str("ca_cert"))
-                .ok_or(MissingFieldError {
-                    field: String::from("icinga.authentication.ca_cert"),
-                })?
-                .as_str()
-                .ok_or(ParseFieldError {
-                    field: String::from("icinga.authentication.ca_cert"),
-                    kind: "string",
-                })
-                .map(|p| PathBuf::from(p))?;
-
             let client_cert = auth_hash
                 .get(&Yaml::from_str("client_cert"))
                 .ok_or(MissingFieldError {
@@ -336,7 +336,6 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
                 .map(|p| PathBuf::from(p))?;
 
             IcingaAuth::X509(IcingaX509Auth {
-                ca_cert,
                 client_cert,
                 client_key,
             })
@@ -352,6 +351,7 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
         scheme,
         host,
         port,
+        ca_cert,
         authentication,
     })
 }
