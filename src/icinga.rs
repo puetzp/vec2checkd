@@ -68,7 +68,7 @@ impl IcingaClient {
 
     pub async fn send(
         &self,
-        mapping: &Mapping<'_>,
+        mapping: &Mapping,
         value: f64,
         exit_status: u8,
         execution_start: u64,

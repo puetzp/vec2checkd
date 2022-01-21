@@ -10,12 +10,12 @@ pub(crate) struct ThresholdPair {
 }
 
 #[derive(Debug)]
-pub(crate) struct Mapping<'a> {
-    pub name: &'a str,
-    pub query: &'a str,
+pub(crate) struct Mapping {
+    pub name: String,
+    pub query: String,
     pub thresholds: Option<ThresholdPair>,
-    pub host: &'a str,
-    pub service: &'a str,
+    pub host: String,
+    pub service: String,
     pub interval: Duration,
     pub last_apply: Instant,
 }

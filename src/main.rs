@@ -7,6 +7,7 @@ mod util;
 use crate::icinga::IcingaClient;
 use crate::types::Mapping;
 use crate::util::*;
+use anyhow::anyhow;
 use anyhow::Context;
 use log::{debug, error, info, warn};
 use prometheus_http_query::{Client, InstantVector};
@@ -36,7 +37,7 @@ async fn main() -> Result<(), anyhow::Error> {
         config::parse_yaml(&raw_conf).with_context(|| "failed to parse configuration file")?;
 
     info!("Read mappings section from configuration");
-    let mut mappings: Vec<Mapping> = config::parse_mappings(&config)
+    let mut mappings: Vec<Mapping> = config::parse_mappings(config.clone())
         .with_context(|| "failed configuration to parse mappings from configuration")?;
 
     if mappings.is_empty() {
@@ -73,132 +74,102 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Enter the main check loop");
     loop {
-        let sleep_secs = {
-            mappings
+        {
+            let sleep_secs = mappings
                 .iter()
                 .map(|mapping| compute_delta(&mapping))
                 .min()
-                .unwrap()
-        };
+                .unwrap();
 
-        std::thread::sleep(sleep_secs);
+            std::thread::sleep(sleep_secs);
+        }
 
         for mapping in mappings
             .iter_mut()
             .filter(|mapping| compute_delta(&mapping).as_secs() <= 1)
         {
-            let exec_start = match util::get_unix_timestamp() {
-                Ok(start) => {
-                    debug!("{}: Start processing mapping at {}", mapping.name, start);
-                    start
-                }
-                Err(e) => {
-                    error!("{}: Skip mapping due to error: {}", mapping.name, e);
-                    continue;
-                }
-            };
+            let inner_prom_client = prom_client.clone();
+            let prom_query = mapping.query.to_string();
 
-            debug!("Process mapping '{}'", mapping.name);
-            let now = Instant::now();
-            debug!(
-                "{}: update last application clock time, set to {:?}",
-                mapping.name, now
-            );
-            mapping.last_apply = now;
-
-            let client = prom_client.clone();
-            let query = mapping.query.to_string();
-
-            debug!("{}: execute PromQL query '{}'", mapping.name, query);
+            let inner_icinga_client = icinga_client.clone();
 
             let join_handle = tokio::spawn(async move {
-                let vector = InstantVector(query);
-                return client.query(vector, None, None).await;
+                let exec_start = util::get_unix_timestamp()
+                    .with_context(|| "failed to retrieve UNIX timestamp to measure event execution")
+                    .unwrap();
+
+                debug!(
+                    "{}: start processing mapping at {}",
+                    mapping.name, exec_start
+                );
+
+                let now = Instant::now();
+
+                debug!(
+                    "{}: update last application clock time, set to {:?}",
+                    mapping.name, now
+                );
+
+                mapping.last_apply = now;
+
+                debug!("{}: execute PromQL query '{}'", mapping.name, prom_query);
+
+                let vector = InstantVector(prom_query);
+
+                let abstract_vector = inner_prom_client
+                    .query(vector, None, None)
+                    .await
+                    .with_context(|| "failed to execute PromQL query")
+                    .unwrap();
+
+                let instant_vector = abstract_vector
+                    .as_instant()
+                    .ok_or(anyhow!(
+                        "failed to parse PromQL query result as instant vector"
+                    ))
+                    .unwrap()
+                    .get(0)
+                    .ok_or(anyhow!("the PromQL result is empty"))
+                    .unwrap();
+
+                let value = f64::from_str(instant_vector.sample().value())
+                    .with_context(|| "failed to convert value of PromQL query result to float")
+                    .unwrap();
+
+                let exit_status = match &mapping.thresholds {
+                    Some(thresholds) => icinga::determine_exit_status(&thresholds, value),
+                    None => 0,
+                };
+
+                let exec_end = util::get_unix_timestamp()
+                    .with_context(|| "failed to retrieve UNIX timestamp to measure event execution")
+                    .unwrap();
+
+                debug!(
+                    "{}: stop measuring processing of mapping at {}",
+                    mapping.name, exec_end
+                );
+
+                inner_icinga_client
+                    .send(&mapping, value, exit_status, exec_start, exec_end)
+                    .await
+                    .with_context(|| "failed to send passive check result to Icinga")
+                    .unwrap();
+
+                debug!(
+                    "{}: passive check result was successfully send to Icinga",
+                    mapping.name
+                );
             })
             .await;
 
-            let query_result = match join_handle {
+            match join_handle {
                 Ok(result) => result,
                 Err(e) => {
                     error!("{}: failed to finish task: {}", mapping.name, e);
                     continue;
                 }
             };
-
-            let abstract_vector = match query_result {
-                Ok(vector) => vector,
-                Err(e) => {
-                    error!("{}: failed to execute PromQL query: {}", mapping.name, e);
-                    continue;
-                }
-            };
-
-            let instant_vector = match abstract_vector.as_instant() {
-                Some(instant) => match instant.get(0) {
-                    Some(first) => first,
-                    None => {
-                        warn!("{}: the PromQL query result is empty", mapping.name);
-                        continue;
-                    }
-                },
-                None => {
-                    error!(
-                        "{}: failed to parse PromQL query result as instant vector",
-                        mapping.name
-                    );
-                    continue;
-                }
-            };
-
-            let value = match f64::from_str(instant_vector.sample().value()) {
-                Ok(v) => v,
-                Err(e) => {
-                    error!(
-                        "{}: failed to convert value of PromQL query result to float: {}",
-                        mapping.name, e
-                    );
-                    continue;
-                }
-            };
-
-            let exit_status = match &mapping.thresholds {
-                Some(thresholds) => icinga::determine_exit_status(&thresholds, value),
-                None => 0,
-            };
-
-            let exec_end = match util::get_unix_timestamp() {
-                Ok(end) => {
-                    debug!(
-                        "{}: Stop measuring processing of mapping at {}",
-                        mapping.name, end
-                    );
-                    end
-                }
-                Err(e) => {
-                    error!(
-                        "{}: Further processing skipped due to error: {}",
-                        mapping.name, e
-                    );
-                    continue;
-                }
-            };
-
-            match icinga_client
-                .send(&mapping, value, exit_status, exec_start, exec_end)
-                .await
-            {
-                Ok(_) => debug!(
-                    "{}: passive check result was successfully send to Icinga",
-                    mapping.name
-                ),
-                Err(e) => {
-                    error!(
-                        "{}: failed to send passive check result to Icinga: {}",
-                        mapping.name, e
-                    );
-                    continue;
-                }
-            }
         }
     }
     Ok(())

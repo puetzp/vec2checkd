@@ -7,11 +7,15 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use yaml_rust::yaml::{Hash, Yaml};
 
-fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyhow::Error> {
-    let name = mapping.0.as_str().ok_or(ParseFieldError {
-        field: format!("mappings.$name"),
-        kind: "string",
-    })?;
+fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
+    let name = mapping
+        .0
+        .as_str()
+        .ok_or(ParseFieldError {
+            field: format!("mappings.$name"),
+            kind: "string",
+        })?
+        .to_string();
 
     let items = mapping.1.as_hash().ok_or(ParseFieldError {
         field: format!("mappings.{}", name),
@@ -27,7 +31,8 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
         .ok_or(ParseFieldError {
             field: format!("mappings.{}.query", name),
             kind: "string",
-        })?;
+        })?
+        .to_string();
 
     let host = items
         .get(&Yaml::from_str("host"))
@@ -38,7 +43,8 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
         .ok_or(ParseFieldError {
             field: format!("mappings.{}.host", name),
             kind: "string",
-        })?;
+        })?
+        .to_string();
 
     let service = items
         .get(&Yaml::from_str("service"))
@@ -49,7 +55,8 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
         .ok_or(ParseFieldError {
             field: format!("mappings.{}.service", name),
             kind: "string",
-        })?;
+        })?
+        .to_string();
 
     let thresholds = match items.get(&Yaml::from_str("thresholds")) {
         Some(t) => {
@@ -123,7 +130,7 @@ fn parse_mapping<'a>(mapping: (&'a Yaml, &'a Yaml)) -> Result<Mapping<'a>, anyho
     })
 }
 
-pub(crate) fn parse_mappings<'a>(config: &'a Hash) -> Result<Vec<Mapping<'a>>, anyhow::Error> {
+pub(crate) fn parse_mappings(config: Hash) -> Result<Vec<Mapping>, anyhow::Error> {
     let mut mappings: Vec<Mapping> = vec![];
 
     match config.get(&Yaml::from_str("mappings")) {
