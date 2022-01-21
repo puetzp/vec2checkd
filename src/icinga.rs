@@ -149,7 +149,7 @@ pub(crate) fn build_payload(
         _ => unreachable!(),
     };
 
-    let ttl = mapping.interval.as_secs() + 60;
+    let ttl = mapping.interval.as_secs();
 
     IcingaPayload {
         obj_type: String::from("Service"),
