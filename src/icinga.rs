@@ -108,6 +108,7 @@ pub(crate) struct IcingaPayload {
     exit_status: u8,
     plugin_output: String,
     filter: String,
+    ttl: u64,
     filter_vars: serde_json::Value,
 }
 
@@ -143,6 +144,7 @@ pub(crate) fn build_payload(mapping: &Mapping, value: f64, exit_status: u8) -> I
     IcingaPayload {
         obj_type: String::from("Service"),
         filter: String::from("host.name==hostname && service.name==servicename"),
+        ttl: mapping.interval.as_secs(),
         exit_status,
         plugin_output,
         filter_vars,
