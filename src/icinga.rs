@@ -88,6 +88,8 @@ impl IcingaClient {
             builder = builder.basic_auth(&auth.username, Some(&auth.password));
         }
 
+        builder = builder.timeout(crate::util::compute_delta(&mapping));
+
         let request = builder.build()?;
 
         debug!("Send request with parameters: {:?}", request);
