@@ -98,7 +98,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
             };
 
-            info!("Process mapping '{}'", mapping.name);
+            debug!("Process mapping '{}'", mapping.name);
             let now = Instant::now();
             debug!(
                 "{}: update last application clock time, set to {:?}",
