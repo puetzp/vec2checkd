@@ -141,10 +141,12 @@ pub(crate) fn build_payload(mapping: &Mapping, value: f64, exit_status: u8) -> I
         _ => unreachable!(),
     };
 
+    let ttl = mapping.interval.as_secs() + 60;
+
     IcingaPayload {
         obj_type: String::from("Service"),
         filter: String::from("host.name==hostname && service.name==servicename"),
-        ttl: mapping.interval.as_secs(),
+        ttl,
         exit_status,
         plugin_output,
         filter_vars,
