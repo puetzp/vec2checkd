@@ -88,14 +88,16 @@ async fn main() -> Result<(), anyhow::Error> {
             .filter(|mapping| compute_delta(&mapping).as_secs() <= 1)
         {
             let exec_start = match util::get_unix_timestamp() {
-                Ok(t) => t,
+                Ok(start) => {
+                    debug!("{}: Start processing mapping at {}", mapping.name, start);
+                    start
+                }
                 Err(e) => {
                     error!("{}: Skip mapping due to error: {}", mapping.name, e);
                     continue;
                 }
             };
 
-            info!("{}", exec_start);
             info!("Process mapping '{}'", mapping.name);
             let now = Instant::now();
             debug!(
@@ -165,10 +167,16 @@ async fn main() -> Result<(), anyhow::Error> {
             };
 
             let exec_end = match util::get_unix_timestamp() {
-                Ok(t) => t,
+                Ok(end) => {
+                    debug!(
+                        "{}: Stop measuring processing of mapping at {}",
+                        mapping.name, end
+                    );
+                    end
+                }
                 Err(e) => {
                     error!(
-                        "{}: Cannot send result to Icinga API due to error: {}",
+                        "{}: Further processing skipped due to error: {}",
                         mapping.name, e
                     );
                     continue;
