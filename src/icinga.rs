@@ -66,8 +66,17 @@ impl IcingaClient {
         })
     }
 
-    pub async fn send(&self, payload: &IcingaPayload) -> Result<(), anyhow::Error> {
-        let body = serde_json::to_string(payload)?;
+    pub async fn send(
+        &self,
+        mapping: &Mapping<'_>,
+        value: f64,
+        exit_status: u8,
+        execution_start: u64,
+        execution_end: u64,
+    ) -> Result<(), anyhow::Error> {
+        let payload = build_payload(&mapping, value, exit_status, execution_start, execution_end);
+
+        let body = serde_json::to_string(&payload)?;
 
         let mut builder = self
             .client
@@ -102,7 +111,7 @@ impl Default for IcingaClient {
 }
 
 #[derive(Serialize)]
-pub(crate) struct IcingaPayload {
+struct IcingaPayload {
     #[serde(rename = "type")]
     obj_type: String,
     exit_status: u8,
@@ -130,7 +139,7 @@ pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u
     0
 }
 
-pub(crate) fn build_payload(
+fn build_payload(
     mapping: &Mapping,
     value: f64,
     exit_status: u8,
