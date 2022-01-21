@@ -2,24 +2,20 @@ mod config;
 mod error;
 mod icinga;
 mod types;
+mod util;
 
 use crate::icinga::IcingaClient;
 use crate::types::Mapping;
+use crate::util::*;
 use anyhow::Context;
 use log::{debug, error, info, warn};
 use prometheus_http_query::{Client, InstantVector};
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/vec2checkd/config.yaml";
-
-fn compute_delta(mapping: &Mapping) -> Duration {
-    mapping
-        .interval
-        .saturating_sub(mapping.last_apply.elapsed())
-}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
@@ -91,6 +87,15 @@ async fn main() -> Result<(), anyhow::Error> {
             .iter_mut()
             .filter(|mapping| compute_delta(&mapping).as_secs() <= 1)
         {
+            let exec_start = match util::get_unix_timestamp() {
+                Ok(t) => t,
+                Err(e) => {
+                    error!("{}: Skip mapping due to error: {}", mapping.name, e);
+                    continue;
+                }
+            };
+
+            info!("{}", exec_start);
             info!("Process mapping '{}'", mapping.name);
             let now = Instant::now();
             debug!(
@@ -159,7 +164,18 @@ async fn main() -> Result<(), anyhow::Error> {
                 None => 0,
             };
 
-            let payload = icinga::build_payload(&mapping, value, exit_status);
+            let exec_end = match util::get_unix_timestamp() {
+                Ok(t) => t,
+                Err(e) => {
+                    error!(
+                        "{}: Cannot send result to Icinga API due to error: {}",
+                        mapping.name, e
+                    );
+                    continue;
+                }
+            };
+
+            let payload = icinga::build_payload(&mapping, value, exit_status, exec_start, exec_end);
 
             match icinga_client.send(&payload).await {
                 Ok(_) => debug!(

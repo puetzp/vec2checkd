@@ -108,8 +108,10 @@ pub(crate) struct IcingaPayload {
     exit_status: u8,
     plugin_output: String,
     filter: String,
-    ttl: u64,
     filter_vars: serde_json::Value,
+    ttl: u64,
+    execution_start: u64,
+    execution_end: u64,
 }
 
 pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u8 {
@@ -128,7 +130,13 @@ pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u
     0
 }
 
-pub(crate) fn build_payload(mapping: &Mapping, value: f64, exit_status: u8) -> IcingaPayload {
+pub(crate) fn build_payload(
+    mapping: &Mapping,
+    value: f64,
+    exit_status: u8,
+    execution_start: u64,
+    execution_end: u64,
+) -> IcingaPayload {
     let filter_vars = serde_json::json!({
         "hostname": mapping.host,
         "servicename": mapping.service
@@ -150,5 +158,7 @@ pub(crate) fn build_payload(mapping: &Mapping, value: f64, exit_status: u8) -> I
         exit_status,
         plugin_output,
         filter_vars,
+        execution_start,
+        execution_end,
     }
 }
