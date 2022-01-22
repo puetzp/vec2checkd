@@ -167,7 +167,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
             match join_handle {
                 Ok(Ok(())) => info!("{}: task finished", mapping.name),
-                Ok(Err(e)) => error!("{}: failed to finish task: {}", mapping.name, e),
+                Ok(Err(e)) => error!(
+                    "{}: failed to finish task: {}",
+                    mapping.name,
+                    e.root_cause()
+                ),
                 Err(e) => error!("{}: failed to finish task: {}", mapping.name, e),
             }
         }
