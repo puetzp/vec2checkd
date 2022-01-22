@@ -3,13 +3,13 @@ use prometheus_http_query::Scheme;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ThresholdPair {
     pub warning: Option<NagiosRange>,
     pub critical: Option<NagiosRange>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Mapping {
     pub name: String,
     pub query: String,

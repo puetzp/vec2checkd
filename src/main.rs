@@ -74,24 +74,33 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Enter the main check loop");
     loop {
-        {
-            let sleep_secs = mappings
-                .iter()
-                .map(|mapping| compute_delta(&mapping))
-                .min()
-                .unwrap();
+        let sleep_secs = mappings
+            .iter()
+            .map(|mapping| compute_delta(&mapping))
+            .min()
+            .unwrap();
 
-            std::thread::sleep(sleep_secs);
-        }
+        std::thread::sleep(sleep_secs);
 
         for mapping in mappings
             .iter_mut()
             .filter(|mapping| compute_delta(&mapping).as_secs() <= 1)
         {
+            let now = Instant::now();
+
+            debug!(
+                "{}: update last application clock time, set to {:?}",
+                mapping.name, now
+            );
+
+            mapping.last_apply = now;
+
             let inner_prom_client = prom_client.clone();
             let prom_query = mapping.query.to_string();
 
             let inner_icinga_client = icinga_client.clone();
+
+            let inner_mapping = mapping.clone();
 
             let join_handle = tokio::spawn(async move {
                 let exec_start = util::get_unix_timestamp()
@@ -100,19 +109,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 debug!(
                     "{}: start processing mapping at {}",
-                    mapping.name, exec_start
+                    inner_mapping.name, exec_start
                 );
-
-                let now = Instant::now();
 
                 debug!(
-                    "{}: update last application clock time, set to {:?}",
-                    mapping.name, now
+                    "{}: execute PromQL query '{}'",
+                    inner_mapping.name, prom_query
                 );
-
-                mapping.last_apply = now;
-
-                debug!("{}: execute PromQL query '{}'", mapping.name, prom_query);
 
                 let vector = InstantVector(prom_query);
 
@@ -136,7 +139,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     .with_context(|| "failed to convert value of PromQL query result to float")
                     .unwrap();
 
-                let exit_status = match &mapping.thresholds {
+                let exit_status = match &inner_mapping.thresholds {
                     Some(thresholds) => icinga::determine_exit_status(&thresholds, value),
                     None => 0,
                 };
@@ -147,18 +150,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 debug!(
                     "{}: stop measuring processing of mapping at {}",
-                    mapping.name, exec_end
+                    inner_mapping.name, exec_end
                 );
 
                 inner_icinga_client
-                    .send(&mapping, value, exit_status, exec_start, exec_end)
+                    .send(&inner_mapping, value, exit_status, exec_start, exec_end)
                     .await
                     .with_context(|| "failed to send passive check result to Icinga")
                     .unwrap();
 
                 debug!(
                     "{}: passive check result was successfully send to Icinga",
-                    mapping.name
+                    inner_mapping.name
                 );
             })
             .await;
