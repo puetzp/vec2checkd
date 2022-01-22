@@ -9,12 +9,14 @@ use crate::types::Mapping;
 use crate::util::*;
 use anyhow::anyhow;
 use anyhow::Context;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use prometheus_http_query::{Client, InstantVector};
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
 use std::time::Instant;
+
+type TaskResult = Result<Result<(), anyhow::Error>, tokio::task::JoinError>;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/vec2checkd/config.yaml";
 
@@ -102,10 +104,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
             let inner_mapping = mapping.clone();
 
-            let join_handle = tokio::spawn(async move {
-                let exec_start = util::get_unix_timestamp()
-                    .with_context(|| "failed to retrieve UNIX timestamp to measure event execution")
-                    .unwrap();
+            let join_handle: TaskResult = tokio::spawn(async move {
+                let exec_start = util::get_unix_timestamp().with_context(|| {
+                    "failed to retrieve UNIX timestamp to measure event execution"
+                })?;
 
                 debug!(
                     "{}: start processing mapping at {}",
@@ -122,31 +124,27 @@ async fn main() -> Result<(), anyhow::Error> {
                 let abstract_vector = inner_prom_client
                     .query(vector, None, None)
                     .await
-                    .with_context(|| "failed to execute PromQL query")
-                    .unwrap();
+                    .with_context(|| "failed to execute PromQL query")?;
 
                 let instant_vector = abstract_vector
                     .as_instant()
                     .ok_or(anyhow!(
                         "failed to parse PromQL query result as instant vector"
-                    ))
-                    .unwrap()
+                    ))?
                     .get(0)
-                    .ok_or(anyhow!("the PromQL result is empty"))
-                    .unwrap();
+                    .ok_or(anyhow!("the PromQL result is empty"))?;
 
                 let value = f64::from_str(instant_vector.sample().value())
-                    .with_context(|| "failed to convert value of PromQL query result to float")
-                    .unwrap();
+                    .with_context(|| "failed to convert value of PromQL query result to float")?;
 
                 let exit_status = match &inner_mapping.thresholds {
                     Some(thresholds) => icinga::determine_exit_status(&thresholds, value),
                     None => 0,
                 };
 
-                let exec_end = util::get_unix_timestamp()
-                    .with_context(|| "failed to retrieve UNIX timestamp to measure event execution")
-                    .unwrap();
+                let exec_end = util::get_unix_timestamp().with_context(|| {
+                    "failed to retrieve UNIX timestamp to measure event execution"
+                })?;
 
                 debug!(
                     "{}: stop measuring processing of mapping at {}",
@@ -156,13 +154,14 @@ async fn main() -> Result<(), anyhow::Error> {
                 inner_icinga_client
                     .send(&inner_mapping, value, exit_status, exec_start, exec_end)
                     .await
-                    .with_context(|| "failed to send passive check result to Icinga")
-                    .unwrap();
+                    .with_context(|| "failed to send passive check result to Icinga")?;
 
                 debug!(
                     "{}: passive check result was successfully send to Icinga",
                     inner_mapping.name
                 );
+
+                Ok(())
             })
             .await;
 
@@ -175,5 +174,4 @@ async fn main() -> Result<(), anyhow::Error> {
             };
         }
     }
-    Ok(())
 }
