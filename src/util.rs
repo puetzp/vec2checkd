@@ -2,6 +2,7 @@ use crate::types::Mapping;
 use anyhow::Context;
 use std::time::{Duration, SystemTime};
 
+#[inline]
 pub(crate) fn compute_delta(mapping: &Mapping) -> Duration {
     mapping
         .interval
