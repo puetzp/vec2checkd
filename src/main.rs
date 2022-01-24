@@ -117,14 +117,14 @@ async fn main() -> Result<(), anyhow::Error> {
             .iter_mut()
             .filter(|mapping| compute_delta(&mapping).as_secs() <= 1)
         {
-            let now = Instant::now();
+            let task_start = Instant::now();
 
             debug!(
                 "{}: update last application clock time, set to {:?}",
-                mapping.name, now
+                mapping.name, task_start
             );
 
-            mapping.last_apply = now;
+            mapping.last_apply = task_start;
 
             let inner_prom_client = prom_client.clone();
             let prom_query = mapping.query.to_string();
@@ -195,7 +195,11 @@ async fn main() -> Result<(), anyhow::Error> {
             .await;
 
             match join_handle {
-                Ok(Ok(())) => info!("{}: task finished", mapping.name),
+                Ok(Ok(())) => info!(
+                    "{}: task finished in {} milliseconds",
+                    mapping.name,
+                    task_start.elapsed().as_millis()
+                ),
                 Ok(Err(e)) => error!(
                     "{}: failed to finish task: {}",
                     mapping.name,
