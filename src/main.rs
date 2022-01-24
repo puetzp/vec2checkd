@@ -196,9 +196,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
             match join_handle {
                 Ok(Ok(())) => info!(
-                    "{}: task finished in {} milliseconds",
+                    "{}: task finished in {} millisecond(s), next execution in ~{} second(s)",
                     mapping.name,
-                    task_start.elapsed().as_millis()
+                    task_start.elapsed().as_millis(),
+                    compute_delta(&mapping).as_secs()
                 ),
                 Ok(Err(e)) => error!(
                     "{}: failed to finish task: {}",
