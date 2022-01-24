@@ -9,6 +9,7 @@ use crate::types::Mapping;
 use crate::util::*;
 use anyhow::anyhow;
 use anyhow::Context;
+use gumdrop::Options;
 use log::{debug, error, info};
 use prometheus_http_query::{Client, InstantVector};
 use std::fs::File;
@@ -19,24 +20,52 @@ use std::time::Instant;
 type TaskResult = Result<Result<(), anyhow::Error>, tokio::task::JoinError>;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/vec2checkd/config.yaml";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[derive(Debug, Options)]
+struct AppOptions {
+    #[options(help = "print help message", short = "h")]
+    help: bool,
+
+    #[options(help = "print version", short = "v")]
+    version: bool,
+
+    #[options(
+        help = "load configuration file from a path other than the default (/etc/vec2checkd/config.yaml)",
+        short = "c"
+    )]
+    config: Option<String>,
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
+    let opts = AppOptions::parse_args_default_or_exit();
+
+    if opts.version {
+        println!("v{}", VERSION);
+        std::process::exit(0);
+    }
+
     env_logger::init();
 
-    info!("Parse configuration from '{}'", DEFAULT_CONFIG_PATH);
-    let mut file = File::open(DEFAULT_CONFIG_PATH).with_context(|| {
-        format!(
-            "failed to read configuration file '{}'",
+    let config_path = opts.config.unwrap_or_else(|| {
+        info!(
+            "No custom config file path provided, falling back to default location: {}",
             DEFAULT_CONFIG_PATH
-        )
-    })?;
+        );
+        DEFAULT_CONFIG_PATH.to_string()
+    });
 
-    let mut raw_conf = String::new();
-    file.read_to_string(&mut raw_conf)?;
+    let config = {
+        info!("Parse configuration from '{}'", config_path);
+        let mut file = File::open(&config_path)
+            .with_context(|| format!("failed to read configuration file '{}'", config_path))?;
 
-    let config =
-        config::parse_yaml(&raw_conf).with_context(|| "failed to parse configuration file")?;
+        let mut raw_conf = String::new();
+        file.read_to_string(&mut raw_conf)?;
+
+        config::parse_yaml(&raw_conf).with_context(|| "failed to parse configuration file")?
+    };
 
     info!("Read mappings section from configuration");
     let mut mappings: Vec<Mapping> = config::parse_mappings(config.clone())
