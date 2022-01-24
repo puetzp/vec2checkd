@@ -5,6 +5,7 @@ use serde::Serialize;
 use std::fs::File;
 use std::io::Read;
 
+/// A client to the Icinga API that can be shared across tokio tasks.
 #[derive(Clone)]
 pub(crate) struct IcingaClient {
     client: reqwest::Client,
@@ -13,6 +14,10 @@ pub(crate) struct IcingaClient {
 }
 
 impl IcingaClient {
+    /// Construct a new client instance. The configuration is consistent
+    /// with the restrictions described by Icinga; ref:
+    /// * https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/#security
+    /// * https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/#authentication
     pub fn new(config: &IcingaConfig) -> Result<Self, anyhow::Error> {
         let mut builder = match &config.authentication {
             IcingaAuth::Basic(_) => reqwest::Client::builder(),
@@ -66,6 +71,7 @@ impl IcingaClient {
         })
     }
 
+    /// Build the request body and send the passive check result to Icinga.
     pub async fn send(
         &self,
         mapping: &Mapping,
@@ -84,10 +90,16 @@ impl IcingaClient {
             .body(body.clone())
             .header("Accept", "application/json");
 
+        // The Basic-Auth header needs to be attached on every request
+        // if this authentication method was chosen.
         if let Some(auth) = &self.basic_auth {
             builder = builder.basic_auth(&auth.username, Some(&auth.password));
         }
 
+        // Set the request timeout to the time remaining before the
+        // next check is to be executed.
+        // This may need to be further reduced when checks are skipped
+        // due to e.g. slow response times from the API.
         builder = builder.timeout(crate::util::compute_delta(&mapping));
 
         let request = builder.build()?;
@@ -112,6 +124,9 @@ impl Default for IcingaClient {
     }
 }
 
+/// This struct represents the expected JSON body of a request that
+/// sends passive check results; ref:
+/// https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/#process-check-result
 #[derive(Serialize)]
 struct IcingaPayload {
     #[serde(rename = "type")]
@@ -125,6 +140,8 @@ struct IcingaPayload {
     execution_end: u64,
 }
 
+/// The basic Nagios stuff. Check if a value lies in the range or not while
+/// the critical range takes precedence over the warning range.
 pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u8 {
     if let Some(critical) = &thresholds.critical {
         if critical.check(value) {
@@ -141,6 +158,8 @@ pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u
     0
 }
 
+/// Take a mapping and all additional computed parameters and build
+/// the body of the Icinga API request from it.
 fn build_payload(
     mapping: &Mapping,
     value: f64,
@@ -148,8 +167,13 @@ fn build_payload(
     execution_start: u64,
     execution_end: u64,
 ) -> IcingaPayload {
+    // The extra ten seconds are somewhat arbitrary. As Icinga may need a little
+    // to process the check result this prevents the host or service object to
+    // fall back to its default value in between check executions.
     let ttl = mapping.interval.as_secs() + 10;
 
+    // A request may be of type "Service" or "Host" depending on if
+    // a service name is provided in the config file or not.
     let (plugin_output, obj_type, filter, filter_vars) = match &mapping.service {
         Some(service) => {
             let filter = String::from("host.name==hostname && service.name==servicename");
@@ -159,6 +183,7 @@ fn build_payload(
                 "servicename": service
             });
 
+            // exit_status cannot be zero as per determine_exit_status.
             let plugin_output = match exit_status {
                 2 => format!("[CRITICAL] {} is {}", mapping.name, value),
                 1 => format!("[WARNING] {} is {}", mapping.name, value),
@@ -175,6 +200,10 @@ fn build_payload(
                 "hostname": mapping.host
             });
 
+            // This mapping from service states to host states is consistent
+            // with Icinga2's own behaviour; ref:
+            // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
+            // Also note: exit_status cannot be zero as per determine_exit_status.
             let plugin_output = match exit_status {
                 2 => format!("[DOWN] {} is {}", mapping.name, value),
                 0 | 1 => format!("[UP] {} is {}", mapping.name, value),
