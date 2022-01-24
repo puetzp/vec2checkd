@@ -69,7 +69,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Read mappings between PromQL and Icinga check results from configuration");
     let mut mappings: Vec<Mapping> = config::parse_mappings(config.clone())
-        .with_context(|| "failed configuration to parse mappings from configuration")?;
+        .with_context(|| "failed to parse mappings from configuration")?;
 
     if mappings.is_empty() {
         info!("No mappings configured. Shutdown.");

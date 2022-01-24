@@ -112,10 +112,22 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
             let conv = u16::try_from(num).map_err(|_| ParseFieldError {
                 field: format!("mappings.{}.interval", name),
                 kind: "number",
-            })?;
-            Duration::from_secs(conv as u64)
+            })? as u64;
+
+            let valid_range = 10..=3600;
+
+            if !valid_range.contains(&conv) {
+                return Err(anyhow!(
+                    "mappings.{}.interval must be in the range {:?}, got {}",
+                    name,
+                    valid_range,
+                    conv
+                ));
+            }
+
+            Duration::from_secs(conv)
         }
-        None => Duration::from_secs(300),
+        None => Duration::from_secs(60),
     };
 
     Ok(Mapping {
