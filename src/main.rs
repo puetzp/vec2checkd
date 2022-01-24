@@ -78,21 +78,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let prom_client = {
         info!("Read Prometheus section from configuration");
-        match config::parse_prom_section(&config)
-            .with_context(|| "failed to parse Prometheus section from configuration")?
-        {
-            Some(c) => {
-                info!(
-                    "Initialize Prometheus API client using base URL '{}://{}:{}'",
-                    c.scheme, c.host, c.port
-                );
-                Client::new(c.scheme, &c.host, c.port)
-            }
-            None => {
-                info!("Initialize Prometheus API client using base URL 'http://127.0.0.1:9090'");
-                Client::default()
-            }
-        }
+        let c = config::parse_prom_section(&config)
+            .with_context(|| "failed to parse Prometheus section from configuration")?;
+        info!("Initialize Prometheus API client");
+        Client::from(&c.host)?
     };
 
     let icinga_client = {

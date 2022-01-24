@@ -151,55 +151,33 @@ pub(crate) fn parse_mappings(config: Hash) -> Result<Vec<Mapping>, anyhow::Error
     }
 }
 
-pub(crate) fn parse_prom_section(config: &Hash) -> Result<Option<PromConfig>, anyhow::Error> {
-    let section = match config.get(&Yaml::from_str("prometheus")) {
-        Some(prometheus) => prometheus.as_hash().ok_or(ParseFieldError {
-            field: String::from("prometheus"),
-            kind: "hash",
-        })?,
-        None => return Ok(None),
-    };
+pub(crate) fn parse_prom_section(config: &Hash) -> Result<PromConfig, anyhow::Error> {
+    let default_host = "http://localhost:9090";
 
-    let scheme = match section
-        .get(&Yaml::from_str("scheme"))
-        .unwrap_or(&Yaml::from_str("http"))
-        .as_str()
-        .ok_or(ParseFieldError {
-            field: String::from("prometheus.scheme"),
-            kind: "string",
-        })? {
-        "http" => Scheme::Http,
-        "https" => Scheme::Https,
-        _ => {
-            bail!("invalid value in 'prometheus.scheme', must be either 'http' or 'https'")
+    match config.get(&Yaml::from_str("prometheus")) {
+        Some(section) => {
+            let prometheus = section.as_hash().ok_or(ParseFieldError {
+                field: String::from("prometheus"),
+                kind: "hash",
+            })?;
+
+            let host = match prometheus.get(&Yaml::from_str("host")) {
+                Some(h) => h
+                    .as_str()
+                    .ok_or(ParseFieldError {
+                        field: String::from("prometheus.scheme"),
+                        kind: "string",
+                    })?
+                    .to_string(),
+                None => default_host.to_string(),
+            };
+
+            Ok(PromConfig { host })
         }
-    };
-
-    let host = section
-        .get(&Yaml::from_str("host"))
-        .unwrap_or(&Yaml::from_str("127.0.0.1"))
-        .as_str()
-        .ok_or(ParseFieldError {
-            field: String::from("prometheus.host"),
-            kind: "string",
-        })?
-        .to_string();
-
-    let port = section
-        .get(&Yaml::from_str("port"))
-        .unwrap_or(&Yaml::Integer(9990))
-        .as_i64()
-        .ok_or(ParseFieldError {
-            field: String::from("prometheus.port"),
-            kind: "number",
-        })?;
-
-    let port = u16::try_from(port).map_err(|_| ParseFieldError {
-        field: String::from("prometheus.port"),
-        kind: "number",
-    })?;
-
-    Ok(Some(PromConfig { scheme, host, port }))
+        None => Ok(PromConfig {
+            host: default_host.to_string(),
+        }),
+    }
 }
 
 pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow::Error> {
