@@ -141,8 +141,8 @@ pub(crate) fn parse_mappings(config: Hash) -> Result<Vec<Mapping>, anyhow::Error
             })?;
 
             for raw_mapping in mapping_hash {
-                let parsed = parse_mapping(raw_mapping)?;
-                mappings.push(parsed);
+                let mapping = parse_mapping(raw_mapping)?;
+                mappings.push(mapping);
             }
 
             Ok(mappings)
