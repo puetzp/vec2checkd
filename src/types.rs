@@ -15,7 +15,7 @@ pub(crate) struct Mapping {
     pub query: String,
     pub thresholds: Option<ThresholdPair>,
     pub host: String,
-    pub service: String,
+    pub service: Option<String>,
     pub interval: Duration,
     pub last_apply: Instant,
 }

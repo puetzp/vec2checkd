@@ -148,23 +148,46 @@ fn build_payload(
     execution_start: u64,
     execution_end: u64,
 ) -> IcingaPayload {
-    let filter_vars = serde_json::json!({
-        "hostname": mapping.host,
-        "servicename": mapping.service
-    });
-
-    let plugin_output = match exit_status {
-        2 => format!("[CRITICAL] {} is {}", mapping.name, value),
-        1 => format!("[WARNING] {} is {}", mapping.name, value),
-        0 => format!("[OK] {} is {}", mapping.name, value),
-        _ => unreachable!(),
-    };
-
     let ttl = mapping.interval.as_secs() + 10;
 
+    let (plugin_output, obj_type, filter, filter_vars) = match &mapping.service {
+        Some(service) => {
+            let filter = String::from("host.name==hostname && service.name==servicename");
+
+            let filter_vars = serde_json::json!({
+                "hostname": mapping.host,
+                "servicename": service
+            });
+
+            let plugin_output = match exit_status {
+                2 => format!("[CRITICAL] {} is {}", mapping.name, value),
+                1 => format!("[WARNING] {} is {}", mapping.name, value),
+                0 => format!("[OK] {} is {}", mapping.name, value),
+                _ => unreachable!(),
+            };
+
+            (plugin_output, String::from("Service"), filter, filter_vars)
+        }
+        None => {
+            let filter = String::from("host.name==hostname");
+
+            let filter_vars = serde_json::json!({
+                "hostname": mapping.host
+            });
+
+            let plugin_output = match exit_status {
+                2 => format!("[DOWN] {} is {}", mapping.name, value),
+                0 | 1 => format!("[UP] {} is {}", mapping.name, value),
+                _ => unreachable!(),
+            };
+
+            (plugin_output, String::from("Host"), filter, filter_vars)
+        }
+    };
+
     IcingaPayload {
-        obj_type: String::from("Service"),
-        filter: String::from("host.name==hostname && service.name==servicename"),
+        obj_type,
+        filter,
         ttl,
         exit_status,
         plugin_output,

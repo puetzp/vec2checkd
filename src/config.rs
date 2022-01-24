@@ -46,17 +46,17 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         })?
         .to_string();
 
-    let service = items
-        .get(&Yaml::from_str("service"))
-        .ok_or(MissingFieldError {
-            field: format!("mappings.{}.service", name),
-        })?
-        .as_str()
-        .ok_or(ParseFieldError {
-            field: format!("mappings.{}.service", name),
-            kind: "string",
-        })?
-        .to_string();
+    let service = match items.get(&Yaml::from_str("service")) {
+        Some(s) => Some(
+            s.as_str()
+                .ok_or(ParseFieldError {
+                    field: format!("mappings.{}.service", name),
+                    kind: "string",
+                })?
+                .to_string(),
+        ),
+        None => None,
+    };
 
     let thresholds = match items.get(&Yaml::from_str("thresholds")) {
         Some(t) => {
