@@ -52,10 +52,11 @@ impl IcingaClient {
 
         let client = builder.build()?;
 
-        let url = format!(
-            "{}://{}:{}/v1/actions/process-check-result",
-            config.scheme, config.host, config.port
-        );
+        let url = {
+            let mut tmp_url = url::Url::parse(&config.host)?.as_str().to_string();
+            tmp_url.push_str("v1/actions/process-check-result");
+            tmp_url
+        };
 
         debug!("Set API URL to send passive check results to {}", url);
 

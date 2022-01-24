@@ -1,5 +1,4 @@
 use nagios_range::NagiosRange;
-use prometheus_http_query::Scheme;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -25,9 +24,7 @@ pub(crate) struct PromConfig {
 }
 
 pub(crate) struct IcingaConfig {
-    pub scheme: Scheme,
     pub host: String,
-    pub port: u16,
     pub ca_cert: Option<PathBuf>,
     pub authentication: IcingaAuth,
 }

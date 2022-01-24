@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use anyhow::Context;
 use gumdrop::Options;
 use log::{debug, error, info};
-use prometheus_http_query::{Client, InstantVector};
+use prometheus_http_query::{Client as PromClient, InstantVector};
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
@@ -81,7 +81,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let c = config::parse_prom_section(&config)
             .with_context(|| "failed to parse Prometheus section from configuration")?;
         info!("Initialize Prometheus API client");
-        Client::from(&c.host)?
+        PromClient::from(&c.host).with_context(|| "failed to initialize Prometheus API client")?
     };
 
     let icinga_client = {
