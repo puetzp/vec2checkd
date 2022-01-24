@@ -67,7 +67,7 @@ async fn main() -> Result<(), anyhow::Error> {
         config::parse_yaml(&raw_conf).with_context(|| "failed to parse configuration file")?
     };
 
-    info!("Read mappings section from configuration");
+    info!("Read mappings between PromQL and Icinga check results from configuration");
     let mut mappings: Vec<Mapping> = config::parse_mappings(config.clone())
         .with_context(|| "failed configuration to parse mappings from configuration")?;
 
