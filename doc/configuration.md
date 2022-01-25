@@ -2,7 +2,7 @@
 
 ## General
 
-The default location of the configuration file  is `/etc/vec2checkd/config.yaml`. But another location can be provided via the `--config` flag. In the most general case nothing other than this file is required to get up and running. Since Icinga _requires_ authentication (x509 or HTTP Basic Auth) a client key and certificate may also be needed. These are generally stored in `/var/lib/vec2checkd/ssl` which is also pre-installed via the `.deb` package.
+The default location of the configuration file  is `/etc/vec2checkd/config.yaml`. But another location can be provided via the `--config` flag. In the most general case nothing other than this file is required to get up and running.
 
 The overall structure of the configuration file is pretty simple:
 
@@ -14,3 +14,13 @@ mappings: {}
 ```
 
 The content of these sections is further explained below.
+
+### Prometheus
+
+At this point the Prometheus section is pretty slim.
+
+```yaml
+prometheus:
+  # The URL at which the server is reachable in order to execute queries against the HTTP API.
+  host: 'http://localhost:9090'
+```
