@@ -53,3 +53,21 @@ impl<'a> fmt::Display for MissingLabelError<'a> {
 }
 
 impl<'a> Error for MissingLabelError<'a> {}
+
+#[derive(Debug)]
+pub(crate) struct MissingThresholdError<'a> {
+    pub identifier: &'a str,
+    pub threshold: &'a str,
+}
+
+impl<'a> fmt::Display for MissingThresholdError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "failed to replace plugin output identifier '{}' with value of {} threshold",
+            self.identifier, self.threshold
+        )
+    }
+}
+
+impl<'a> Error for MissingThresholdError<'a> {}

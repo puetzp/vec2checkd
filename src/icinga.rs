@@ -246,14 +246,44 @@ fn format_plugin_output(
                 .collect::<String>();
 
             let replacement = match identifier.as_str() {
+                "$name" => mapping.name.clone(),
+                "$query" => mapping.query.clone(),
                 "$interval" => mapping.interval.as_secs().to_string(),
+                "$value" => value.to_string(),
+                "$exit_status" => exit_status.to_string(),
+                "$thresholds.warning" => {
+                    let err = MissingThresholdError {
+                        identifier: "$thresholds.warning",
+                        threshold: "warning",
+                    };
+
+                    mapping
+                        .thresholds
+                        .ok_or(err)?
+                        .warning
+                        .ok_or(err)?
+                        .to_string()
+                }
+                "$thresholds.critical" => {
+                    let err = MissingThresholdError {
+                        identifier: "$thresholds.critical",
+                        threshold: "critical",
+                    };
+
+                    mapping
+                        .thresholds
+                        .ok_or(err)?
+                        .warning
+                        .ok_or(err)?
+                        .to_string()
+                }
                 "$metric" => metric
                     .get("__name__")
                     .ok_or(MissingLabelError {
                         identifier: identifier.clone(),
                         label: "__name__",
                     })?
-                    .to_owned(),
+                    .clone(),
                 _ => {
                     bail!("the plugin output identifier '{}' is invalid", identifier)
                 }
