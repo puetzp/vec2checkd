@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::types::*;
+use anyhow::bail;
 use log::debug;
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
@@ -231,35 +232,36 @@ fn format_plugin_output(
     exit_status: u8,
 ) -> Result<String, anyhow::Error> {
     if let Some(template) = &mapping.plugin_output {
-        // Every substring in the template that start with '$' needs
-        // to be interpreted and then replaced with its proper value.
-        // To that end, first identify the starting positions of each
-        // eligible substring.
-        let positions = template
-            .char_indices()
-            .filter(|(_, c)| *c == '$')
-            .map(|pair| pair.0)
-            .collect::<Vec<usize>>();
-
+        // Copy the templated plugin output in order to gradually replace
+        // placeholders with values.
         let mut plugin_output = template.to_string();
 
-        for position in positions {
-            let identifier = template[position..]
+        // Every substring in the template that start with '$' needs
+        // to be interpreted and then replaced with its proper value
+        // one by one.
+        while let Some((position, _)) = plugin_output.char_indices().find(|(_, c)| *c == '$') {
+            let identifier = plugin_output[position..]
                 .chars()
                 .take_while(|c| !c.is_whitespace())
                 .collect::<String>();
 
             let replacement = match identifier.as_str() {
-                "$metric" => metric.get("__name__").ok_or(MissingLabelError {
-                    identifier: identifier.clone(),
-                    label: "__name__",
-                })?,
-                _ => unreachable!(),
+                "$interval" => mapping.interval.as_secs().to_string(),
+                "$metric" => metric
+                    .get("__name__")
+                    .ok_or(MissingLabelError {
+                        identifier: identifier.clone(),
+                        label: "__name__",
+                    })?
+                    .to_owned(),
+                _ => {
+                    bail!("the plugin output identifier '{}' is invalid", identifier)
+                }
             };
 
             let range = position..position + identifier.len();
 
-            plugin_output.replace_range(range, replacement);
+            plugin_output.replace_range(range, &replacement);
         }
 
         Ok(plugin_output)
@@ -299,7 +301,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
-    fn test_format_plugin_output() {
+    fn test_format_plugin_output_1() {
         let mapping = Mapping {
             name: "foobar".to_string(),
             query: "up{random_label=\"random_value\"}".to_string(),
@@ -315,5 +317,29 @@ mod tests {
 
         let result = format_plugin_output(&mapping, 0.0, &metric, 0).unwrap();
         assert_eq!(result, String::from("custom output serves me good ..."));
+    }
+
+    #[test]
+    fn test_format_plugin_output_2() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: None,
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from(
+                "custom output serves me $metric ... every $interval seconds",
+            )),
+        };
+        let mut metric = HashMap::new();
+        metric.insert("__name__".to_string(), "good".to_string());
+
+        let result = format_plugin_output(&mapping, 0.0, &metric, 0).unwrap();
+        assert_eq!(
+            result,
+            String::from("custom output serves me good ... every 60 seconds")
+        );
     }
 }
