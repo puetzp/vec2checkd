@@ -259,6 +259,7 @@ fn format_plugin_output(
 
                     mapping
                         .thresholds
+                        .as_ref()
                         .ok_or(err)?
                         .warning
                         .ok_or(err)?
@@ -272,6 +273,7 @@ fn format_plugin_output(
 
                     mapping
                         .thresholds
+                        .as_ref()
                         .ok_or(err)?
                         .warning
                         .ok_or(err)?

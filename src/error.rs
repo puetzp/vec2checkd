@@ -54,7 +54,7 @@ impl<'a> fmt::Display for MissingLabelError<'a> {
 
 impl<'a> Error for MissingLabelError<'a> {}
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) struct MissingThresholdError<'a> {
     pub identifier: &'a str,
     pub threshold: &'a str,

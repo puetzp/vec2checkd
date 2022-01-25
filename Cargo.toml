@@ -9,7 +9,7 @@ prometheus-http-query = "0.3.3"
 log = "0.4"
 env_logger = "0.9"
 anyhow = "1"
-nagios-range = "0.2"
+nagios-range = "0.2.3"
 tokio = { version = "1", features = ["rt", "macros"] }
 reqwest = { version = "0.11", features = ["rustls-tls", "json"] }
 serde = "1.0"
