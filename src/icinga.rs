@@ -239,11 +239,21 @@ fn format_plugin_output(
         // Every substring in the template that start with '$' needs
         // to be interpreted and then replaced with its proper value
         // one by one.
-        while let Some((position, _)) = plugin_output.char_indices().find(|(_, c)| *c == '$') {
-            let identifier = plugin_output[position..]
+        // Note that if you want to insert a label value from the
+        // PromQL query result, retrieving that value may fail at
+        // runtime because the closure below actually allows for
+        // a greater range of valid characters than is available
+        // for label values, which is [a-zA-Z_][a-zA-Z0-9_]* as per
+        // the Prometheus documentation.
+        while let Some((position, var_ident)) =
+            plugin_output.char_indices().find(|(_, c)| *c == '$')
+        {
+            let mut identifier = plugin_output[position + 1..]
                 .chars()
-                .take_while(|c| !c.is_whitespace())
+                .take_while(|c| c.is_alphabetic() || *c == '_' || *c == '.')
                 .collect::<String>();
+
+            identifier.insert(0, var_ident);
 
             let replacement = match identifier.as_str() {
                 "$name" => mapping.name.clone(),
@@ -275,7 +285,7 @@ fn format_plugin_output(
                         .thresholds
                         .as_ref()
                         .ok_or(err)?
-                        .warning
+                        .critical
                         .ok_or(err)?
                         .to_string()
                 }
@@ -283,9 +293,19 @@ fn format_plugin_output(
                     .get("__name__")
                     .ok_or(MissingLabelError {
                         identifier: identifier.clone(),
-                        label: "__name__",
+                        label: "__name__".to_string(),
                     })?
                     .clone(),
+                _ if identifier.as_str().starts_with("'$labels.") => {
+                    let metric_key = identifier.as_str().split_once('.').unwrap().1;
+                    metric
+                        .get(metric_key)
+                        .ok_or(MissingLabelError {
+                            identifier: identifier.clone(),
+                            label: metric_key.to_string(),
+                        })?
+                        .clone()
+                }
                 _ => {
                     bail!("the plugin output identifier '{}' is invalid", identifier)
                 }
@@ -328,12 +348,29 @@ fn format_plugin_output(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::Mapping;
+    use crate::types::{Mapping, ThresholdPair};
+    use nagios_range::NagiosRange;
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
     #[test]
-    fn test_format_plugin_output_1() {
+    fn test_format_plugin_output_with_name() {
+        let mapping = Mapping {
+            name: "this check".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: None,
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from("Do not worry, $name is alright")),
+        };
+        let result = format_plugin_output(&mapping, 0.0, &HashMap::new(), 0).unwrap();
+        assert_eq!(result, String::from("Do not worry, this check is alright"));
+    }
+
+    #[test]
+    fn test_format_plugin_output_with_query() {
         let mapping = Mapping {
             name: "foobar".to_string(),
             query: "up{random_label=\"random_value\"}".to_string(),
@@ -342,21 +379,69 @@ mod tests {
             service: None,
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
-            plugin_output: Some(String::from("custom output serves me $metric ...")),
+            plugin_output: Some(String::from("Query $query was successful")),
         };
-        let mut metric = HashMap::new();
-        metric.insert("__name__".to_string(), "good".to_string());
-
-        let result = format_plugin_output(&mapping, 0.0, &metric, 0).unwrap();
-        assert_eq!(result, String::from("custom output serves me good ..."));
+        let result = format_plugin_output(&mapping, 0.0, &HashMap::new(), 0).unwrap();
+        assert_eq!(
+            result,
+            String::from("Query up{random_label=\"random_value\"} was successful")
+        );
     }
 
     #[test]
-    fn test_format_plugin_output_2() {
+    fn test_format_plugin_output_with_name_and_interval() {
+        let mapping = Mapping {
+            name: "infallible".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: None,
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from(
+                "Check '$name' is executed every $interval seconds",
+            )),
+        };
+        let result = format_plugin_output(&mapping, 0.0, &HashMap::new(), 0).unwrap();
+        assert_eq!(
+            result,
+            String::from("Check 'infallible' is executed every 60 seconds")
+        );
+    }
+
+    #[test]
+    fn test_format_plugin_output_with_threshold_and_value() {
         let mapping = Mapping {
             name: "foobar".to_string(),
             query: "up{random_label=\"random_value\"}".to_string(),
-            thresholds: None,
+            thresholds: Some(ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            }),
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from(
+                "Result value is $value (critical at: '$thresholds.critical')",
+            )),
+        };
+        let result = format_plugin_output(&mapping, 5.5, &HashMap::new(), 0).unwrap();
+        assert_eq!(
+            result,
+            String::from("Result value is 5.5 (critical at: '@10:20')")
+        );
+    }
+
+    #[test]
+    fn test_format_plugin_output() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: Some(ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            }),
             host: "foo".to_string(),
             service: None,
             interval: Duration::from_secs(60),

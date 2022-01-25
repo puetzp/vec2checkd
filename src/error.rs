@@ -37,12 +37,12 @@ impl<'a> fmt::Display for ParseFieldError<'a> {
 impl<'a> Error for ParseFieldError<'a> {}
 
 #[derive(Debug)]
-pub(crate) struct MissingLabelError<'a> {
+pub(crate) struct MissingLabelError {
     pub identifier: String,
-    pub label: &'a str,
+    pub label: String,
 }
 
-impl<'a> fmt::Display for MissingLabelError<'a> {
+impl<'a> fmt::Display for MissingLabelError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -52,7 +52,7 @@ impl<'a> fmt::Display for MissingLabelError<'a> {
     }
 }
 
-impl<'a> Error for MissingLabelError<'a> {}
+impl Error for MissingLabelError {}
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct MissingThresholdError<'a> {
