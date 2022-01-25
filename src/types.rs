@@ -17,6 +17,7 @@ pub(crate) struct Mapping {
     pub service: Option<String>,
     pub interval: Duration,
     pub last_apply: Instant,
+    pub plugin_output: Option<String>,
 }
 
 pub(crate) struct PromConfig {

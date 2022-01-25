@@ -57,6 +57,18 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         None => None,
     };
 
+    let plugin_output = match items.get(&Yaml::from_str("plugin_output")) {
+        Some(p) => Some(
+            p.as_str()
+                .ok_or(ParseFieldError {
+                    field: format!("mappings.{}.plugin_output", name),
+                    kind: "string",
+                })?
+                .to_string(),
+        ),
+        None => None,
+    };
+
     let thresholds = match items.get(&Yaml::from_str("thresholds")) {
         Some(t) => {
             let t_hash = t.as_hash().ok_or(ParseFieldError {
@@ -136,6 +148,7 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         host,
         service,
         interval,
+        plugin_output,
         thresholds: threshold_pair,
         last_apply: Instant::now(),
     })

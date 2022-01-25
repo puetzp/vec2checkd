@@ -2,6 +2,7 @@ use crate::types::*;
 use log::debug;
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 
@@ -77,11 +78,19 @@ impl IcingaClient {
         &self,
         mapping: &Mapping,
         value: f64,
+        metric: &HashMap<String, String>,
         exit_status: u8,
         execution_start: u64,
         execution_end: u64,
     ) -> Result<(), anyhow::Error> {
-        let payload = build_payload(&mapping, value, exit_status, execution_start, execution_end);
+        let payload = build_payload(
+            &mapping,
+            value,
+            metric,
+            exit_status,
+            execution_start,
+            execution_end,
+        );
 
         let body = serde_json::to_string(&payload)?;
 
@@ -164,6 +173,7 @@ pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u
 fn build_payload(
     mapping: &Mapping,
     value: f64,
+    metric: &HashMap<String, String>,
     exit_status: u8,
     execution_start: u64,
     execution_end: u64,
@@ -175,7 +185,7 @@ fn build_payload(
 
     // A request may be of type "Service" or "Host" depending on if
     // a service name is provided in the config file or not.
-    let (plugin_output, obj_type, filter, filter_vars) = match &mapping.service {
+    let (obj_type, filter, filter_vars) = match &mapping.service {
         Some(service) => {
             let filter = String::from("host.name==hostname && service.name==servicename");
 
@@ -184,15 +194,7 @@ fn build_payload(
                 "servicename": service
             });
 
-            // exit_status cannot be zero as per determine_exit_status.
-            let plugin_output = match exit_status {
-                2 => format!("[CRITICAL] {} is {}", mapping.name, value),
-                1 => format!("[WARNING] {} is {}", mapping.name, value),
-                0 => format!("[OK] {} is {}", mapping.name, value),
-                _ => unreachable!(),
-            };
-
-            (plugin_output, String::from("Service"), filter, filter_vars)
+            (String::from("Service"), filter, filter_vars)
         }
         None => {
             let filter = String::from("host.name==hostname");
@@ -201,19 +203,11 @@ fn build_payload(
                 "hostname": mapping.host
             });
 
-            // This mapping from service states to host states is consistent
-            // with Icinga2's own behaviour; ref:
-            // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
-            // Also note: exit_status cannot be zero as per determine_exit_status.
-            let plugin_output = match exit_status {
-                2 => format!("[DOWN] {} is {}", mapping.name, value),
-                0 | 1 => format!("[UP] {} is {}", mapping.name, value),
-                _ => unreachable!(),
-            };
-
-            (plugin_output, String::from("Host"), filter, filter_vars)
+            (String::from("Host"), filter, filter_vars)
         }
     };
+
+    let plugin_output = format_plugin_output(mapping, value, metric, exit_status);
 
     IcingaPayload {
         obj_type,
@@ -225,4 +219,42 @@ fn build_payload(
         execution_start,
         execution_end,
     }
+}
+
+/// Format the "plugin output" (in nagios-speak) by interpreting and expanding
+/// the string from the configuration or return a sensible default.
+fn format_plugin_output(
+    mapping: &Mapping,
+    value: f64,
+    metric: &HashMap<String, String>,
+    exit_status: u8,
+) -> String {
+    if mapping.plugin_output.is_none() {
+        match &mapping.service {
+            Some(_) => {
+                // exit_status cannot be zero as per determine_exit_status.
+                let plugin_output = match exit_status {
+                    2 => format!("[CRITICAL] {} is {}", mapping.name, value),
+                    1 => format!("[WARNING] {} is {}", mapping.name, value),
+                    0 => format!("[OK] {} is {}", mapping.name, value),
+                    _ => unreachable!(),
+                };
+                return plugin_output;
+            }
+            None => {
+                // This mapping from service states to host states is consistent
+                // with Icinga2's own behaviour; ref:
+                // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
+                // Also note: exit_status cannot be zero as per determine_exit_status.
+                let plugin_output = match exit_status {
+                    2 => format!("[DOWN] {} is {}", mapping.name, value),
+                    0 | 1 => format!("[UP] {} is {}", mapping.name, value),
+                    _ => unreachable!(),
+                };
+                return plugin_output;
+            }
+        }
+    }
+
+    format!("")
 }

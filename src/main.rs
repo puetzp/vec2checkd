@@ -155,6 +155,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 let value = f64::from_str(instant_vector.sample().value())
                     .with_context(|| "failed to convert value of PromQL query result to float")?;
 
+                let metric = instant_vector.metric();
+
                 let exit_status = match &inner_mapping.thresholds {
                     Some(thresholds) => icinga::determine_exit_status(&thresholds, value),
                     None => 0,
@@ -170,7 +172,14 @@ async fn main() -> Result<(), anyhow::Error> {
                 );
 
                 inner_icinga_client
-                    .send(&inner_mapping, value, exit_status, exec_start, exec_end)
+                    .send(
+                        &inner_mapping,
+                        value,
+                        metric,
+                        exit_status,
+                        exec_start,
+                        exec_end,
+                    )
                     .await
                     .with_context(|| "failed to send passive check result to Icinga")?;
 
