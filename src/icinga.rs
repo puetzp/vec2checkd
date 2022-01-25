@@ -1,3 +1,4 @@
+use crate::error::*;
 use crate::types::*;
 use log::debug;
 use reqwest::{Certificate, Identity};
@@ -90,7 +91,7 @@ impl IcingaClient {
             exit_status,
             execution_start,
             execution_end,
-        );
+        )?;
 
         let body = serde_json::to_string(&payload)?;
 
@@ -177,7 +178,7 @@ fn build_payload(
     exit_status: u8,
     execution_start: u64,
     execution_end: u64,
-) -> IcingaPayload {
+) -> Result<IcingaPayload, anyhow::Error> {
     // The extra ten seconds are somewhat arbitrary. As Icinga may need a little
     // to process the check result this prevents the host or service object to
     // fall back to its default value in between check executions.
@@ -207,9 +208,9 @@ fn build_payload(
         }
     };
 
-    let plugin_output = format_plugin_output(mapping, value, metric, exit_status);
+    let plugin_output = format_plugin_output(mapping, value, metric, exit_status)?;
 
-    IcingaPayload {
+    Ok(IcingaPayload {
         obj_type,
         filter,
         ttl,
@@ -218,7 +219,7 @@ fn build_payload(
         filter_vars,
         execution_start,
         execution_end,
-    }
+    })
 }
 
 /// Format the "plugin output" (in nagios-speak) by interpreting and expanding
@@ -228,8 +229,41 @@ fn format_plugin_output(
     value: f64,
     metric: &HashMap<String, String>,
     exit_status: u8,
-) -> String {
-    if mapping.plugin_output.is_none() {
+) -> Result<String, anyhow::Error> {
+    if let Some(template) = &mapping.plugin_output {
+        // Every substring in the template that start with '$' needs
+        // to be interpreted and then replaced with its proper value.
+        // To that end, first identify the starting positions of each
+        // eligible substring.
+        let positions = template
+            .char_indices()
+            .filter(|(_, c)| *c == '$')
+            .map(|pair| pair.0)
+            .collect::<Vec<usize>>();
+
+        let mut plugin_output = template.to_string();
+
+        for position in positions {
+            let identifier = template[position..]
+                .chars()
+                .take_while(|c| !c.is_whitespace())
+                .collect::<String>();
+
+            let replacement = match identifier.as_str() {
+                "$metric" => metric.get("__name__").ok_or(MissingLabelError {
+                    identifier: identifier.clone(),
+                    label: "__name__",
+                })?,
+                _ => unreachable!(),
+            };
+
+            let range = position..position + identifier.len();
+
+            plugin_output.replace_range(range, replacement);
+        }
+
+        Ok(plugin_output)
+    } else {
         match &mapping.service {
             Some(_) => {
                 // exit_status cannot be zero as per determine_exit_status.
@@ -239,7 +273,7 @@ fn format_plugin_output(
                     0 => format!("[OK] {} is {}", mapping.name, value),
                     _ => unreachable!(),
                 };
-                return plugin_output;
+                return Ok(plugin_output);
             }
             None => {
                 // This mapping from service states to host states is consistent
@@ -251,10 +285,35 @@ fn format_plugin_output(
                     0 | 1 => format!("[UP] {} is {}", mapping.name, value),
                     _ => unreachable!(),
                 };
-                return plugin_output;
+                return Ok(plugin_output);
             }
         }
     }
+}
 
-    format!("")
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::Mapping;
+    use std::collections::HashMap;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn test_format_plugin_output() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: None,
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from("custom output serves me $metric ...")),
+        };
+        let mut metric = HashMap::new();
+        metric.insert("__name__".to_string(), "good".to_string());
+
+        let result = format_plugin_output(&mapping, 0.0, &metric, 0).unwrap();
+        assert_eq!(result, String::from("custom output serves me good ..."));
+    }
 }

@@ -35,3 +35,21 @@ impl<'a> fmt::Display for ParseFieldError<'a> {
 }
 
 impl<'a> Error for ParseFieldError<'a> {}
+
+#[derive(Debug)]
+pub(crate) struct MissingLabelError<'a> {
+    pub identifier: String,
+    pub label: &'a str,
+}
+
+impl<'a> fmt::Display for MissingLabelError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "failed to replace plugin output identifier '{}' with value of label '{}'",
+            self.identifier, self.label
+        )
+    }
+}
+
+impl<'a> Error for MissingLabelError<'a> {}
