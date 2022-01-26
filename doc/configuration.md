@@ -125,4 +125,4 @@ exit status | plugin output | example
 exit status | plugin output | example
 --- | --- | ---
 0 or 1 | [UP] <mapping> is <value> | [UP] ready_workers is 8
-2 | [DOWN] <mapping> is <value> | [DOWN] running_pods is 2
+2 | [DOWN] <mapping> is <value> | [DOWN] ready_workers is 2
