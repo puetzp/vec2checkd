@@ -109,3 +109,5 @@ mappings:
     # OPTIONAL.
     plugin_output: '<custom_output>'
 ```
+
+The syntax of _Nagios ranges_ is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
