@@ -154,4 +154,4 @@ mappings:
     ...
 ```
 
-A more complete example can be found in the (default configuration)[../defaults(config.yaml] of the debian package.
+A more complete example can be found in the [default configuration](../defaults/config.yaml) of the debian package.
