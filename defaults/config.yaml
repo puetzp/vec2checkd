@@ -14,6 +14,6 @@ mappings: {}
   #   service: 'my-app: number of ready pods'
   #   interval: 30
   #   thresholds:
-  #     warning: @21:
-  #     critical: @20
+  #     warning: '@21:'
+  #     critical: '@20'
   #   plugin_output: '[$state] $labels.deployment (namespace: $labels.exported_namespace) has $value running pods'
