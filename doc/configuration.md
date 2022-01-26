@@ -127,21 +127,21 @@ exit status | plugin output | example
 0 or 1 | [UP] \<mapping\> is \<value\> | [UP] ready_workers is 8
 2 | [DOWN] \<mapping\> is \<value\> | [DOWN] ready_workers is 2
 
-This default output may be replaced by providing a string with placeholders in the plugin_output.
+This default output may be replaced by providing a string with placeholders in the plugin_output. Some placeholders may cause the processing of a mapping to fail if they cannot be evaluated, see column "fallible".
 Valid placeholders are:
 
-placeholder | description
+placeholder | description | fallible
 --- | ---
-$name | the name of the mapping
-$query | the configured PromQL query
-$interval | the configured check interval
-$value | the result value as returened by the PromQL query
-$state | the resulting host/service state that was computed using thresholds, e.g. UP/DOWN and OK/WARNING/CRITICAL or UP/OK when n thresholds were defined
-$exit_status | the exit status that was computed using thresholds, e.g. 0/1/2 or 0 when no thresholds were defined
-$thresholds.warning | the warning Nagios range if one was configured
-$thresholds.critical | the critical Nagios range if one was configured
-$metric | the metric name of the PromQL query result vector if any
-$labels.<label_name> | an arbitrary label value that is part of the PromQL query result vector
+$name | the name of the mapping | no
+$query | the configured PromQL query | no
+$interval | the configured check interval | no
+$value | the result value as returened by the PromQL query | no
+$state | the resulting host/service state that was computed using thresholds, e.g. UP/DOWN and OK/WARNING/CRITICAL or UP/OK when n thresholds were defined | no
+$exit_status | the exit status that was computed using thresholds, e.g. 0/1/2 or 0 when no thresholds were defined | no
+$thresholds.warning | the warning Nagios range if one was configured | yes
+$thresholds.critical | the critical Nagios range if one was configured | yes
+$metric | the metric name of the PromQL query result vector if any | yes
+$labels.<label_name> | an arbitrary label value that is part of the PromQL query result vector | yes
 
 Example:
 
@@ -154,4 +154,4 @@ mappings:
     ...
 ```
 
-Note that the processing of a mapping fails when the custom plugin output cannot be evaluated because, e.g. the PromQL query result does not contain a $metric name or a label access by labels.<label_name> is not present in the result vector. 
+Note that the processing of a mapping fails when the custom plugin output cannot be evaluated because, e.g. the PromQL query result does not contain a $metric name or a label access by labels.<label_name> is not present in the result vector. See 
