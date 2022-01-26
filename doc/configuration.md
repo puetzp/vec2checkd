@@ -22,8 +22,9 @@ At this point the Prometheus section is rather slim.
 ```yaml
 prometheus:
   # The URL at which the server is reachable in order to execute queries against the HTTP API.
+  # Default: 'http://localhost:9090'
   # Example:
-  host: 'http://localhost:9090'
+  host: 'https://prometheus.example.com:9090'
 ```
 
 ### Icinga
@@ -33,9 +34,25 @@ The Icinga API is more difficult to set up in that it _requires_ HTTPS and eithe
 ```yaml
 icinga:
   # The URL at which the server is reachable in order to execute queries against the HTTP API. In this case HTTPS is required.
+  # Default: 'https://localhost:5665'
   # Example:
-  host: 'https://localhost:5665'
+  host: 'https://satellite1.icinga.local'
 
   # If no trust relationship between the system and the self-signed Icinga root certificate has been established by some means, the location of the certificate must be provided here.
-  ca_cert: <path_to_ca_cert>
+  # Example:
+  ca_cert: '/usr/local/share/ca-certificates/icinga.crt'
+  
+  authentication:
+    # Valid authentication mechanims are HTTP Basic Auth and X.509.
+    # Required.
+    method: 'x509' | 'basic-auth'
+
+    # Username and password for Basic authentication are only needed when method is set to 'basic-auth'.
+    username: 'myuser'
+    password: 'mypassword'
+
+    # Paths to client certificate and key are only needed when method is set to 'x509'.
+    # Make sure the files are owned/readable by the vec2check user.
+    client_cert: '/var/lib/vec2checkd/ssl'
+    client_key: '/var/lib/vec2checkd/ssl'
 ```
