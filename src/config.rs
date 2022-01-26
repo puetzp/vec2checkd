@@ -190,7 +190,7 @@ pub(crate) fn parse_prom_section(config: &Hash) -> Result<PromConfig, anyhow::Er
                 .unwrap_or(&Yaml::from_str(default_host))
                 .as_str()
                 .ok_or(ParseFieldError {
-                    field: String::from("prometheus.scheme"),
+                    field: String::from("prometheus.host"),
                     kind: "string",
                 })?
                 .to_string();
