@@ -131,7 +131,7 @@ This default output may be replaced by providing a string with placeholders in t
 Valid placeholders are:
 
 placeholder | description | fallible
---- | ---
+--- | --- | ---
 $name | the name of the mapping | no
 $query | the configured PromQL query | no
 $interval | the configured check interval | no
