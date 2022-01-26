@@ -126,3 +126,32 @@ exit status | plugin output | example
 --- | --- | ---
 0 or 1 | [UP] <mapping> is <value> | [UP] ready_workers is 8
 2 | [DOWN] <mapping> is <value> | [DOWN] ready_workers is 2
+
+This default output may be replaced by providing a string with placeholders in the plugin_output.
+Valid placeholders are:
+
+placeholder | description
+--- | ---
+$name | the name of the mapping
+$query | the configured PromQL query
+$interval | the configured check interval
+$value | the result value as returened by the PromQL query
+$state | the resulting host/service state that was computed using thresholds, e.g. UP/DOWN and OK/WARNING/CRITICAL or UP/OK when n thresholds were defined
+$exit_status | the exit status that was computed using thresholds, e.g. 0/1/2 or 0 when no thresholds were defined
+$thresholds.warning | the warning Nagios range if one was configured
+$thresholds.critical | the critical Nagios range if one was configured
+$metric | the metric name of the PromQL query result vector if any
+$labels.<label_name> | an arbitrary label value that is part of the PromQL query result vector
+
+Example:
+
+```yaml
+mappings:
+  'running_pods':
+    ...
+    query: 'kube_deployment_status_replicas_ready{deployment="my-app"}'
+    plugin_output: '[$state] $labels.deployment (namespace: $labels.exported_namespace) has $value running pods'
+    ...
+```
+
+Note that the processing of a mapping fails when the custom plugin output cannot be evaluated because, e.g. the PromQL query result does not contain a $metric name or a label access by labels.<label_name> is not present in the result vector. 
