@@ -1,0 +1,19 @@
+prometheus: {}
+  # host: 'http://localhost:9090'
+icinga:
+  # host: 'https://localhost:5665'
+  # ca_cert: '<path_to_ca_cert>'
+  authentication:
+    method: 'x509'
+    client_cert: '<path_to_cert>'
+    client_key: '<path_to_key>'
+mappings: {}
+  # 'ready pods of my-app':
+  #   query: 'kube_deployment_status_replicas_ready{deployment="my-app"}'
+  #   host: 'Kubernetes production cluster'
+  #   service: 'my-app: number of ready pods'
+  #   interval: 30
+  #   thresholds:
+  #     warning: @21:
+  #     critical: @20
+  #   plugin_output: '[$state] $labels.deployment (namespace: $labels.exported_namespace) has $value running pods'
