@@ -90,7 +90,7 @@ mappings:
     interval: '<check_interval_in_seconds>'
 
     # Use warning and critical thresholds to check the PromQL query result value and determine the Icinga host/service state.
-    # Each threshold is a Nagios range, see the [development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT) for valid values.
+    # Each threshold must be a Nagios range.
     # OPTIONAL.
     thresholds:
       # OPTIONAL.
