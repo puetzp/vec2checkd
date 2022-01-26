@@ -3,7 +3,7 @@
 set -e
 
 if [ "$1" = "configure" ]; then
-    adduser --system --group --quiet vec2check
+    adduser --system --group --quiet --no-create-home vec2check
 fi
 
 #DEBHELPER#
