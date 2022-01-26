@@ -1,7 +1,10 @@
 [package]
 name = "vec2checkd"
 version = "0.1.0"
+authors = ["Peter Sebastian Puetz <peter.puetz@itenos.de>"]
 edition = "2021"
+description = "Execute PromQL queries and send results as passive check results to Icinga2"
+readme = "README.md"
 
 [dependencies]
 yaml-rust = "0.4"
@@ -17,3 +20,17 @@ serde_json = "1.0"
 base64 = "0.13"
 gumdrop = "0.8"
 url = "2.2"
+
+[package.metadata.deb]
+extended-description = "vec2checkd executes PromQL queries against the Prometheus HTTP API regularly and evaluates and translates the results to passive check results to be sent to the Icinga2 HTTP API"
+license-file = [ "LICENSE.md", 0 ]
+section = "misc"
+priority = "optional"
+conf-files = ["/etc/vec2checkd/config.yaml", "/var/lib/vec2checkd/ssl"]
+maintainer-scripts = "debian/"
+systemd-units = { unit-name = "vec2checkd" }
+assets = [
+       ["target/release/vec2checkd", "/usr/bin/vec2checkd", "755"],
+       ["defaults/config.yaml", "/etc/vec2checkd/config.yaml", "644"],
+]
+depends = "$auto"

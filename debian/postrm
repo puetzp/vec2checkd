@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "purge" ]; then
+    deluser vec2check
+fi
+
+#DEBHELPER#
