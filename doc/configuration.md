@@ -135,8 +135,8 @@ placeholder | description | fallible
 $name | the name of the mapping | no
 $query | the configured PromQL query | no
 $interval | the configured check interval | no
-$value | the result value as returened by the PromQL query | no
-$state | the resulting host/service state that was computed using thresholds, e.g. UP/DOWN and OK/WARNING/CRITICAL or UP/OK when n thresholds were defined | no
+$value | the result value as returned by the PromQL query | no
+$state | the resulting host/service state that was computed using thresholds, e.g. UP/DOWN and OK/WARNING/CRITICAL or UP/OK when no thresholds were defined | no
 $exit_status | the exit status that was computed using thresholds, e.g. 0/1/2 or 0 when no thresholds were defined | no
 $thresholds.warning | the warning Nagios range if one was configured | yes
 $thresholds.critical | the critical Nagios range if one was configured | yes
@@ -153,3 +153,5 @@ mappings:
     plugin_output: '[$state] $labels.deployment (namespace: $labels.exported_namespace) has $value running pods'
     ...
 ```
+
+A more complete example can be found in the (default configuration)[../defaults(config.yaml] of the debian package.
