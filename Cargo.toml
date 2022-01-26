@@ -27,7 +27,7 @@ extended-description = "vec2checkd executes PromQL queries against the Prometheu
 license-file = [ "LICENSE", "0" ]
 section = "utility"
 priority = "optional"
-conf-files = ["/etc/vec2checkd/config.yaml", "/var/lib/vec2checkd/ssl"]
+conf-files = ["/etc/vec2checkd/config.yaml"]
 maintainer-scripts = "debian/"
 systemd-units = { unit-name = "vec2checkd" }
 assets = [
