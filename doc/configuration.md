@@ -111,3 +111,18 @@ mappings:
 ```
 
 The syntax of _Nagios ranges_ is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
+
+The default _plugin output_ is as follows for service objects:
+
+exit status | plugin output | example
+--- | --- | ---
+0 | [OK] <mapping> is <value> | [OK] running_pods is 5
+1 | [WARNING] <mapping> is <value> | [WARNING] running_pods is 3
+2 | [CRITICAL] <mapping> is <value> | [CRITICAL] running_pods is 1
+
+... and for host objects:
+
+exit status | plugin output | example
+--- | --- | ---
+0 or 1 | [UP] <mapping> is <value> | [UP] ready_workers is 8
+2 | [DOWN] <mapping> is <value> | [DOWN] running_pods is 2
