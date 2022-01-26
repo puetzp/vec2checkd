@@ -20,6 +20,11 @@ mappings: {}
 
 The content of these sections is further explained below.
 
+First of all some clarifications how PromQL query results are mapped to passive Icinga check results:
+
+* The "exit status", that is the Icinga host/service state is determined by comparing the PromQL query result value with warning and critical thresholds.
+* The passive check result is used to either update an Icinga host object (when _only_ the host name was provided in the mapping) or a service object (when _both_ the host name and service name were provided).
+
 ### Prometheus
 
 At this point the Prometheus section is rather slim.
