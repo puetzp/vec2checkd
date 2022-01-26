@@ -153,5 +153,3 @@ mappings:
     plugin_output: '[$state] $labels.deployment (namespace: $labels.exported_namespace) has $value running pods'
     ...
 ```
-
-Note that the processing of a mapping fails when the custom plugin output cannot be evaluated because, e.g. the PromQL query result does not contain a $metric name or a label access by labels.<label_name> is not present in the result vector. See 
