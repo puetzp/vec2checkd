@@ -332,7 +332,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
-    fn test_format_plugin_output_with_threshold_and_value() {
+    fn test_format_plugin_output_with_threshold_and_value_and_state() {
         let mapping = Mapping {
             name: "foobar".to_string(),
             query: "up{random_label=\"random_value\"}".to_string(),
@@ -345,13 +345,13 @@ mod tests {
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
             plugin_output: Some(String::from(
-                "Result value is $value (critical at: '@10:20')",
+                "[$state] Result value is $value (critical at: '@10:20')",
             )),
         };
         let result = format_plugin_output(&mapping, 5.5, &HashMap::new(), 0).unwrap();
         assert_eq!(
             result,
-            String::from("Result value is 5.5 (critical at: '@10:20')")
+            String::from("[UP] Result value is 5.5 (critical at: '@10:20')")
         );
     }
 
