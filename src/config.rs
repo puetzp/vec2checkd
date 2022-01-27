@@ -6,40 +6,74 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use yaml_rust::yaml::{Hash, Yaml};
 
-/// Validates the consistency of the mapping itself, e.g. checks
-/// if the placeholders used in mapping.plugin_output can actually
-/// be expanded during check execution.
-fn validate_mapping(mapping: &Mapping) -> Result<(), anyhow::Error> {
-    if let Some(plugin_output) = &mapping.plugin_output {
-        if plugin_output.contains("$service") && mapping.service.is_none() {
-            return Err(InvalidPluginOutputError {
-                mapping_name: mapping.name.clone(),
-                reference: "service",
-            }
-            .into());
+/// This function replaces all placeholders in the custom plugin string
+/// that are already known after parsing a mapping and do not change
+/// during runtime.
+fn preformat_plugin_output(mapping: &mut Mapping) -> Result<(), anyhow::Error> {
+    if let Some(ref mut template) = mapping.plugin_output {
+        // Copy the templated plugin output in order to gradually replace
+        // placeholders with values.
+        let mut plugin_output = template.to_string();
+
+        // Every substring in the template that start with '$' needs
+        // to be interpreted and then replaced with its proper value
+        // one by one.
+        while let Some((position, var_ident)) =
+            plugin_output.char_indices().find(|(_, c)| *c == '$')
+        {
+            let mut placeholder = plugin_output[position + 1..]
+                .chars()
+                .take_while(|c| c.is_alphabetic() || *c == '.')
+                .collect::<String>();
+
+            placeholder.insert(0, var_ident);
+
+            let replacement = match placeholder.as_str() {
+                "$name" => mapping.name.clone(),
+                "$query" => mapping.query.clone(),
+                "$interval" => mapping.interval.as_secs().to_string(),
+                "$host" => mapping.host.clone(),
+                "$service" => 
+                    mapping
+                    .service
+                    .as_ref()
+                    .ok_or(anyhow!("cannot replace plugin output placeholder '$service' as no service name was configured"))?.clone(),
+                "$thresholds.warning" => {
+                    mapping
+                        .thresholds
+                        .warning
+                        .ok_or(MissingThresholdError {
+                            identifier: "$thresholds.warning",
+                            threshold: "warning",
+                        }
+                        )?
+                        .to_string()
+                }
+                "$thresholds.critical" => {
+                    mapping
+                        .thresholds
+                        .critical
+                        .ok_or(MissingThresholdError {
+                            identifier: "$thresholds.critical",
+                            threshold: "critical",
+                        })?
+                        .to_string()
+                }
+                _ => {
+                    bail!("the plugin output placeholder '{}' is invalid", placeholder)
+                }
+            };
+
+            let range = position..position + placeholder.len();
+
+            plugin_output.replace_range(range, &replacement);
         }
 
-        if plugin_output.contains("$thresholds.warning") {
-            if mapping.thresholds.warning.is_none() {
-                return Err(InvalidPluginOutputError {
-                    mapping_name: mapping.name.clone(),
-                    reference: "thresholds.warning",
-                }
-                .into());
-            }
-        }
-
-        if plugin_output.contains("$thresholds.critical") {
-            if mapping.thresholds.warning.is_none() {
-                return Err(InvalidPluginOutputError {
-                    mapping_name: mapping.name.clone(),
-                    reference: "thresholds.critical",
-                }
-                .into());
-            }
-        }
+        *template = plugin_output;
+        Ok(())
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
@@ -196,8 +230,8 @@ pub(crate) fn parse_mappings(config: Hash) -> Result<Vec<Mapping>, anyhow::Error
             })?;
 
             for raw_mapping in mapping_hash {
-                let mapping = parse_mapping(raw_mapping)?;
-                validate_mapping(&mapping)?;
+                let mut mapping = parse_mapping(raw_mapping)?;
+                preformat_plugin_output(&mut mapping)?;
                 mappings.push(mapping);
             }
 
@@ -368,4 +402,95 @@ pub(crate) fn parse_yaml(source: &str) -> Result<Hash, anyhow::Error> {
         .clone()
         .into_hash()
         .ok_or(anyhow!("failed to parse configuration as hash"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{Mapping, ThresholdPair};
+    use nagios_range::NagiosRange;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn test_preformat_plugin_output_with_name() {
+        let mut mapping = Mapping {
+            name: "this check".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair::default(),
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from("Do not worry, $name is alright")),
+        };
+        preformat_plugin_output(&mut mapping).unwrap();
+        assert_eq!(
+            mapping.plugin_output.unwrap(),
+            String::from("Do not worry, this check is alright")
+        );
+    }
+
+    #[test]
+    fn test_preformat_plugin_output_with_query() {
+        let mut mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair::default(),
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from("Query $query was successful")),
+        };
+        preformat_plugin_output(&mut mapping).unwrap();
+        assert_eq!(
+            mapping.plugin_output.unwrap(),
+            String::from("Query up{random_label=\"random_value\"} was successful")
+        );
+    }
+
+    #[test]
+    fn test_preformat_plugin_output_with_name_and_interval() {
+        let mut mapping = Mapping {
+            name: "infallible".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair::default(),
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from(
+                "Check '$name' is executed every $interval seconds",
+            )),
+        };
+        preformat_plugin_output(&mut mapping).unwrap();
+        assert_eq!(
+            mapping.plugin_output.unwrap(),
+            String::from("Check 'infallible' is executed every 60 seconds")
+        );
+    }
+
+    #[test]
+    fn test_preformat_plugin_output_with_threshold() {
+        let mut mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from(
+                "Result value is $value (critical at: '$thresholds.critical')",
+            )),
+        };
+        preformat_plugin_output(&mut mapping).unwrap();
+        assert_eq!(
+            mapping.plugin_output.unwrap(),
+            String::from("Result value is $value (critical at: '@10:20')")
+        );
+    }
 }
