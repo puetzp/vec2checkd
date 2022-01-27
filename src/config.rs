@@ -474,4 +474,34 @@ mod tests {
             String::from("Result value is $value (critical at: '@10:20')")
         );
     }
+
+    #[test]
+    fn test_preformat_plugin_output_with_thresholds_and_service() {
+        let mut mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: Some(NagiosRange::from("@10").unwrap()),
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from(
+                r#"Result value is $labels.cluster
+warning at: '$thresholds.warning'
+critical at: '$thresholds.critical'"#,
+            )),
+        };
+        preformat_plugin_output(&mut mapping).unwrap();
+        assert_eq!(
+            mapping.plugin_output.unwrap(),
+            String::from(
+                r#"Result value is $labels.cluster
+warning at: '@0:10'
+critical at: '@10:20'"#
+            )
+        );
+    }
 }
