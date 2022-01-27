@@ -10,66 +10,47 @@ use yaml_rust::yaml::{Hash, Yaml};
 /// that are already known after parsing a mapping and do not change
 /// during runtime.
 fn preformat_plugin_output(mapping: &mut Mapping) -> Result<(), anyhow::Error> {
-    if let Some(ref mut template) = mapping.plugin_output {
+    if let Some(ref mut plugin_output) = mapping.plugin_output {
         // Copy the templated plugin output in order to gradually replace
         // placeholders with values.
-        let mut plugin_output = template.to_string();
+        //        let mut plugin_output = template.to_string();
 
-        // Every substring in the template that start with '$' needs
-        // to be interpreted and then replaced with its proper value
-        // one by one.
-        while let Some((position, var_ident)) =
-            plugin_output.char_indices().find(|(_, c)| *c == '$')
-        {
-            let mut placeholder = plugin_output[position + 1..]
-                .chars()
-                .take_while(|c| c.is_alphabetic() || *c == '.')
-                .collect::<String>();
+        // Every placeholder whose value is known at this point is replaced.
+        // Placeholders whose values depend on the result of the PromQL query
+        // will be replaced later on.
+        *plugin_output = plugin_output.replace("$name", &mapping.name);
+        *plugin_output = plugin_output.replace("$query", &mapping.query);
+        *plugin_output =
+            plugin_output.replace("$interval", &mapping.interval.as_secs().to_string());
+        *plugin_output = plugin_output.replace("$host", &mapping.host);
 
-            placeholder.insert(0, var_ident);
-
-            let replacement = match placeholder.as_str() {
-                "$name" => mapping.name.clone(),
-                "$query" => mapping.query.clone(),
-                "$interval" => mapping.interval.as_secs().to_string(),
-                "$host" => mapping.host.clone(),
-                "$service" => 
-                    mapping
-                    .service
-                    .as_ref()
-                    .ok_or(anyhow!("cannot replace plugin output placeholder '$service' as no service name was configured"))?.clone(),
-                "$thresholds.warning" => {
-                    mapping
-                        .thresholds
-                        .warning
-                        .ok_or(MissingThresholdError {
-                            identifier: "$thresholds.warning",
-                            threshold: "warning",
-                        }
-                        )?
-                        .to_string()
-                }
-                "$thresholds.critical" => {
-                    mapping
-                        .thresholds
-                        .critical
-                        .ok_or(MissingThresholdError {
-                            identifier: "$thresholds.critical",
-                            threshold: "critical",
-                        })?
-                        .to_string()
-                }
-                _ => {
-                    bail!("the plugin output placeholder '{}' is invalid", placeholder)
-                }
-            };
-
-            let range = position..position + placeholder.len();
-
-            plugin_output.replace_range(range, &replacement);
+        let placeholder = "$service";
+        if plugin_output.contains(placeholder) {
+            if let Some(replacement) = &mapping.service {
+                *plugin_output = plugin_output.replace(placeholder, replacement);
+            } else {
+                bail!("'{}': cannot replace plugin output placeholder '{}' as no service name was configured", placeholder, mapping.name);
+            }
         }
 
-        *template = plugin_output;
+        let placeholder = "$thresholds.warning";
+        if plugin_output.contains(placeholder) {
+            if let Some(s) = &mapping.thresholds.warning {
+                *plugin_output = plugin_output.replace(placeholder, &s.to_string());
+            } else {
+                bail!("'{}': cannot replace plugin output placeholder '{}' as no warning threshold was configured", placeholder, mapping.name);
+            }
+        }
+
+        let placeholder = "$thresholds.critical";
+        if plugin_output.contains(placeholder) {
+            if let Some(s) = &mapping.thresholds.critical {
+                *plugin_output = plugin_output.replace(placeholder, &s.to_string());
+            } else {
+                bail!("'{}': cannot replace plugin output placeholder '{}' as no critical threshold was configured", placeholder, mapping.name);
+            }
+        }
+
         Ok(())
     } else {
         Ok(())
