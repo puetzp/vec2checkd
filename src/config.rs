@@ -6,6 +6,42 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use yaml_rust::yaml::{Hash, Yaml};
 
+/// Validates the consistency of the mapping itself, e.g. checks
+/// if the placeholders used in mapping.plugin_output can actually
+/// be expanded during check execution.
+fn validate_mapping(mapping: &Mapping) -> Result<(), anyhow::Error> {
+    if let Some(plugin_output) = &mapping.plugin_output {
+        if plugin_output.contains("$service") && mapping.service.is_none() {
+            return Err(InvalidPluginOutputError {
+                mapping_name: mapping.name.clone(),
+                reference: "service",
+            }
+            .into());
+        }
+
+        if plugin_output.contains("$thresholds.warning") {
+            if mapping.thresholds.warning.is_none() {
+                return Err(InvalidPluginOutputError {
+                    mapping_name: mapping.name.clone(),
+                    reference: "thresholds.warning",
+                }
+                .into());
+            }
+        }
+
+        if plugin_output.contains("$thresholds.critical") {
+            if mapping.thresholds.warning.is_none() {
+                return Err(InvalidPluginOutputError {
+                    mapping_name: mapping.name.clone(),
+                    reference: "thresholds.critical",
+                }
+                .into());
+            }
+        }
+    }
+    Ok(())
+}
+
 fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
     let name = mapping
         .0
@@ -69,49 +105,44 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         None => None,
     };
 
-    let thresholds = match items.get(&Yaml::from_str("thresholds")) {
-        Some(t) => {
-            let t_hash = t.as_hash().ok_or(ParseFieldError {
-                field: format!("mappings.{}.thresholds", name),
-                kind: "hash",
-            })?;
+    let thresholds = {
+        match items.get(&Yaml::from_str("thresholds")) {
+            Some(t) => {
+                let t_hash = t.as_hash().ok_or(ParseFieldError {
+                    field: format!("mappings.{}.thresholds", name),
+                    kind: "hash",
+                })?;
 
-            if t_hash.is_empty() {
-                None
-            } else {
-                Some(t_hash)
+                if t_hash.is_empty() {
+                    ThresholdPair::default()
+                } else {
+                    let warning = match t_hash.get(&Yaml::from_str("warning")) {
+                        Some(w) => {
+                            let w_raw = w.as_str().ok_or(ParseFieldError {
+                                field: format!("mappings.{}.thresholds.warning", name),
+                                kind: "string",
+                            })?;
+                            Some(NagiosRange::from(w_raw)?)
+                        }
+                        None => None,
+                    };
+
+                    let critical = match t_hash.get(&Yaml::from_str("critical")) {
+                        Some(c) => {
+                            let c_raw = c.as_str().ok_or(ParseFieldError {
+                                field: format!("mappings.{}.thresholds.critical", name),
+                                kind: "string",
+                            })?;
+                            Some(NagiosRange::from(c_raw)?)
+                        }
+                        None => None,
+                    };
+
+                    ThresholdPair { warning, critical }
+                }
             }
+            None => ThresholdPair::default(),
         }
-        None => None,
-    };
-
-    let threshold_pair = match thresholds {
-        Some(t) => {
-            let warning = match t.get(&Yaml::from_str("warning")) {
-                Some(w) => {
-                    let w_raw = w.as_str().ok_or(ParseFieldError {
-                        field: format!("mappings.{}.thresholds.warning", name),
-                        kind: "string",
-                    })?;
-                    Some(NagiosRange::from(w_raw)?)
-                }
-                None => None,
-            };
-
-            let critical = match t.get(&Yaml::from_str("critical")) {
-                Some(c) => {
-                    let c_raw = c.as_str().ok_or(ParseFieldError {
-                        field: format!("mappings.{}.thresholds.critical", name),
-                        kind: "string",
-                    })?;
-                    Some(NagiosRange::from(c_raw)?)
-                }
-                None => None,
-            };
-
-            Some(ThresholdPair { warning, critical })
-        }
-        None => None,
     };
 
     let interval: Duration = match items.get(&Yaml::from_str("interval")) {
@@ -149,7 +180,7 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         service,
         interval,
         plugin_output,
-        thresholds: threshold_pair,
+        thresholds,
         last_apply: Instant::now(),
     })
 }
@@ -166,6 +197,7 @@ pub(crate) fn parse_mappings(config: Hash) -> Result<Vec<Mapping>, anyhow::Error
 
             for raw_mapping in mapping_hash {
                 let mapping = parse_mapping(raw_mapping)?;
+                validate_mapping(&mapping)?;
                 mappings.push(mapping);
             }
 

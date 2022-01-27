@@ -127,7 +127,7 @@ exit status | plugin output | example
 0 or 1 | [UP] \<mapping\> is \<value\> | [UP] ready_workers is 8
 2 | [DOWN] \<mapping\> is \<value\> | [DOWN] ready_workers is 2
 
-This default output may be replaced by providing a string with placeholders in the plugin_output. Some placeholders may cause the processing of a mapping to fail if they cannot be evaluated, see column "fallible".
+This default output may be replaced by providing a string with placeholders in the plugin_output. Some placeholders may cause the processing of a mapping to fail if they cannot be evaluated at check execution, see column "fallible".
 Valid placeholders are:
 
 placeholder | description | fallible
@@ -135,11 +135,13 @@ placeholder | description | fallible
 $name | the name of the mapping | no
 $query | the configured PromQL query | no
 $interval | the configured check interval | no
+$host | the Icinga host object to be updated | no
+$service | the Icinga service object to be updated | no
 $value | the result value as returned by the PromQL query | no
 $state | the resulting host/service state that was computed using thresholds, e.g. UP/DOWN and OK/WARNING/CRITICAL or UP/OK when no thresholds were defined | no
 $exit_status | the exit status that was computed using thresholds, e.g. 0/1/2 or 0 when no thresholds were defined | no
-$thresholds.warning | the warning Nagios range if one was configured | yes
-$thresholds.critical | the critical Nagios range if one was configured | yes
+$thresholds.warning | the warning Nagios range if one was configured | no
+$thresholds.critical | the critical Nagios range if one was configured | no
 $metric | the metric name of the PromQL query result vector if any | yes
 $labels.<label_name> | an arbitrary label value that is part of the PromQL query result vector | yes
 

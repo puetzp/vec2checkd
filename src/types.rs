@@ -8,11 +8,20 @@ pub(crate) struct ThresholdPair {
     pub critical: Option<NagiosRange>,
 }
 
+impl Default for ThresholdPair {
+    fn default() -> Self {
+        ThresholdPair {
+            warning: None,
+            critical: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Mapping {
     pub name: String,
     pub query: String,
-    pub thresholds: Option<ThresholdPair>,
+    pub thresholds: ThresholdPair,
     pub host: String,
     pub service: Option<String>,
     pub interval: Duration,

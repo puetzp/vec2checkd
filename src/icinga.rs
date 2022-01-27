@@ -1,6 +1,6 @@
 use crate::error::*;
 use crate::types::*;
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use log::debug;
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
@@ -259,6 +259,12 @@ fn format_plugin_output(
                 "$name" => mapping.name.clone(),
                 "$query" => mapping.query.clone(),
                 "$interval" => mapping.interval.as_secs().to_string(),
+                "$host" => mapping.host.clone(),
+                "$service" => 
+                    mapping
+                    .service
+                    .as_ref()
+                    .ok_or(anyhow!("cannot replace plugin output placeholder '$service' as no service name was configured"))?.clone(),
                 "$value" => value.to_string(),
                 "$state" => match &mapping.service {
                     Some(_) => match exit_status {
@@ -275,31 +281,24 @@ fn format_plugin_output(
                 },
                 "$exit_status" => exit_status.to_string(),
                 "$thresholds.warning" => {
-                    let err = MissingThresholdError {
-                        identifier: "$thresholds.warning",
-                        threshold: "warning",
-                    };
-
                     mapping
                         .thresholds
-                        .as_ref()
-                        .ok_or(err)?
                         .warning
-                        .ok_or(err)?
+                        .ok_or(MissingThresholdError {
+                            identifier: "$thresholds.warning",
+                            threshold: "warning",
+                        }
+                        )?
                         .to_string()
                 }
                 "$thresholds.critical" => {
-                    let err = MissingThresholdError {
-                        identifier: "$thresholds.critical",
-                        threshold: "critical",
-                    };
-
                     mapping
                         .thresholds
-                        .as_ref()
-                        .ok_or(err)?
                         .critical
-                        .ok_or(err)?
+                        .ok_or(MissingThresholdError {
+                            identifier: "$thresholds.critical",
+                            threshold: "critical",
+                        })?
                         .to_string()
                 }
                 "$metric" => metric

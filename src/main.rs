@@ -157,10 +157,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 let metric = instant_vector.metric();
 
-                let exit_status = match &inner_mapping.thresholds {
-                    Some(thresholds) => icinga::determine_exit_status(&thresholds, value),
-                    None => 0,
-                };
+                let exit_status = icinga::determine_exit_status(&inner_mapping.thresholds, value);
 
                 let exec_end = util::get_unix_timestamp().with_context(|| {
                     "failed to retrieve UNIX timestamp to measure event execution"
