@@ -57,6 +57,20 @@ fn preformat_plugin_output(mapping: &mut Mapping) -> Result<(), anyhow::Error> {
     }
 }
 
+/// Parses a single mapping from YAML configuration.
+/// This YAML is expected to have the following format:
+///
+/// ```yaml
+/// '<name>':
+///   query: '<promql_query>'
+///   host: '<host_object>'
+///   service: '<host_object>'           # optional
+///   interval: <check_interval>
+///   thresholds:                        # optional
+///     warning: '<nagios_range>'        # optional
+///     critical: '<nagios_range>'       # optional
+///   plugin_output: '<custom_template>' # optional
+/// ```
 fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
     let name = mapping
         .0
@@ -200,6 +214,16 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
     })
 }
 
+/// Parses a multiple mappings from YAML configuration.
+/// This YAML is expected to have the following format:
+///
+/// ```yaml
+/// mappings:
+///   '<first>': {} ...
+///   '<second>': {} ...
+///   '<third>': {} ...
+///   ...
+/// ```
 pub(crate) fn parse_mappings(config: Hash) -> Result<Vec<Mapping>, anyhow::Error> {
     let mut mappings: Vec<Mapping> = vec![];
 
