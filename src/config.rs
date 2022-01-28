@@ -1,7 +1,9 @@
 use crate::error::*;
 use crate::types::*;
 use anyhow::{anyhow, bail};
+use log::debug;
 use nagios_range::NagiosRange;
+use std::env;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use yaml_rust::yaml::{Hash, Yaml};
@@ -332,29 +334,51 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
 
     let authentication = match auth_method {
         "basic-auth" => {
-            let username = auth_hash
-                .get(&Yaml::from_str("username"))
-                .ok_or(MissingFieldError {
-                    field: String::from("icinga.authentication.username"),
-                })?
-                .as_str()
-                .ok_or(ParseFieldError {
-                    field: String::from("icinga.authentication.username"),
-                    kind: "string",
-                })?
-                .to_string();
+            let username = {
+                let env_var = "V2C_ICINGA_USERNAME";
+                let conf_attribute = "icinga.authentication.username";
 
-            let password = auth_hash
-                .get(&Yaml::from_str("password"))
-                .ok_or(MissingFieldError {
-                    field: String::from("icinga.authentication.password"),
-                })?
-                .as_str()
-                .ok_or(ParseFieldError {
-                    field: String::from("icinga.authentication.password"),
-                    kind: "string",
-                })?
-                .to_string();
+                match env::var(env_var) {
+                    Ok(val) => val,
+                    Err(err) => {
+                        debug!("failed to read Icinga ApiUser username from environment: {err}; try to read from configuration file instead");
+
+                        auth_hash
+                            .get(&Yaml::from_str("username"))
+                            .ok_or(anyhow!("failed to read mandatory Icinga ApiUser username from either the environment ('{env_var}') or configuration file ('{conf_attribute}')")
+                            )?
+                            .as_str()
+                            .ok_or(ParseFieldError {
+                                field: conf_attribute.to_string(),
+                                kind: "string",
+                            })?
+                            .to_string()
+                    }
+                }
+            };
+
+            let password = {
+                let env_var = "V2C_ICINGA_PASSWORD";
+                let conf_attribute = "icinga.authentication.password";
+
+                match env::var(env_var) {
+                    Ok(val) => val,
+                    Err(err) => {
+                        debug!("failed to read Icinga ApiUser password from environment: {err}; try to read from configuration file instead");
+
+                        auth_hash
+                            .get(&Yaml::from_str("password"))
+                            .ok_or(anyhow!("failed to read mandatory Icinga ApiUser username from either the environment ('{env_var}') or configuration file ('{conf_attribute}')")
+                            )?
+                            .as_str()
+                            .ok_or(ParseFieldError {
+                                field: conf_attribute.to_string(),
+                                kind: "string",
+                            })?
+                            .to_string()
+                    }
+                }
+            };
 
             IcingaAuth::Basic(IcingaBasicAuth { username, password })
         }
