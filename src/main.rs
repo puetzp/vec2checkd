@@ -152,6 +152,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 let (value, metric, exit_status) = match instant_vector.get(0) {
                     Some(first_vec) => {
+                        debug!("'{}': Process only the first item from the PromQL vector result set", inner_mapping.name);
                         let value = f64::from_str(first_vec.sample().value())
                             .with_context(|| "failed to convert value of PromQL query result to float")?;
                         let metric = first_vec.metric().clone();
