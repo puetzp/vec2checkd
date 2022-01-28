@@ -10,7 +10,7 @@ use crate::util::*;
 use anyhow::anyhow;
 use anyhow::Context;
 use gumdrop::Options;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use prometheus_http_query::{Client as PromClient, InstantVector};
 use std::fs::File;
 use std::io::Read;
@@ -128,12 +128,12 @@ async fn main() -> Result<(), anyhow::Error> {
                 })?;
 
                 debug!(
-                    "{}: start processing mapping at {}",
+                    "'{}': start processing mapping at {}",
                     inner_mapping.name, exec_start
                 );
 
                 debug!(
-                    "{}: execute PromQL query '{}'",
+                    "'{}': execute PromQL query '{}'",
                     inner_mapping.name, prom_query
                 );
 
@@ -148,23 +148,30 @@ async fn main() -> Result<(), anyhow::Error> {
                     .as_instant()
                     .ok_or(anyhow!(
                         "failed to parse PromQL query result as instant vector"
-                    ))?
-                    .get(0)
-                    .ok_or(anyhow!("the PromQL result is empty"))?;
+                    ))?;
 
-                let value = f64::from_str(instant_vector.sample().value())
-                    .with_context(|| "failed to convert value of PromQL query result to float")?;
+                let (value, metric, exit_status) = match instant_vector.get(0) {
+                    Some(first_vec) => {
+                        let value = f64::from_str(first_vec.sample().value())
+                            .with_context(|| "failed to convert value of PromQL query result to float")?;
+                        let metric = first_vec.metric().clone();
+                        let exit_status = icinga::determine_exit_status(&inner_mapping.thresholds, value);
 
-                let metric = instant_vector.metric();
+                        (value, metric, exit_status)
+                    },
+                    None => {
+                        warn!("'{}': PromQL query result is empty, default to 'UNKNOWN' status (exit code '3')", inner_mapping.name);
+                        (0.0, std::collections::HashMap::new(), 3)
+                    }
+                };
 
-                let exit_status = icinga::determine_exit_status(&inner_mapping.thresholds, value);
 
                 let exec_end = util::get_unix_timestamp().with_context(|| {
                     "failed to retrieve UNIX timestamp to measure event execution"
                 })?;
 
                 debug!(
-                    "{}: stop measuring processing of mapping at {}",
+                    "'{}': stop measuring processing of mapping at {}",
                     inner_mapping.name, exec_end
                 );
 
@@ -172,7 +179,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     .send(
                         &inner_mapping,
                         value,
-                        metric,
+                        &metric,
                         exit_status,
                         exec_start,
                         exec_end,
@@ -181,7 +188,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     .with_context(|| "failed to send passive check result to Icinga")?;
 
                 debug!(
-                    "{}: passive check result was successfully send to Icinga",
+                    "'{}': passive check result was successfully send to Icinga",
                     inner_mapping.name
                 );
 
@@ -191,17 +198,17 @@ async fn main() -> Result<(), anyhow::Error> {
 
             match join_handle {
                 Ok(Ok(())) => info!(
-                    "{}: task finished in {} millisecond(s), next execution in ~{} second(s)",
+                    "'{}': task finished in {} millisecond(s), next execution in ~{} second(s)",
                     mapping.name,
                     task_start.elapsed().as_millis(),
                     compute_delta(&mapping).as_secs()
                 ),
                 Ok(Err(e)) => error!(
-                    "{}: failed to finish task: {}",
+                    "'{}': failed to finish task: {}",
                     mapping.name,
                     e.root_cause()
                 ),
-                Err(e) => error!("{}: failed to finish task: {}", mapping.name, e),
+                Err(e) => error!("'{}': failed to finish task: {}", mapping.name, e),
             }
         }
     }

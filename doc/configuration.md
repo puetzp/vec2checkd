@@ -118,16 +118,18 @@ The default _plugin output_ is as follows for service objects:
 
 exit status | plugin output | example
 --- | --- | ---
-0 | [OK] \<mapping\> is \<value\> | [OK] running_pods is 5
-1 | [WARNING] \<mapping\> is \<value\> | [WARNING] running_pods is 3
-2 | [CRITICAL] \<mapping\> is \<value\> | [CRITICAL] running_pods is 1
+0 | [OK] '\<mapping\>' is \<value\> | [OK] 'running_pods' is 5
+1 | [WARNING] '\<mapping\>' is \<value\> | [WARNING] 'running_pods' is 3
+2 | [CRITICAL] '\<mapping\>' is \<value\> | [CRITICAL] 'running_pods' is 1
+3 | [UNKNOWN] '\<mapping\>': PromQL query result is empty | [UNKNOWN] 'running_pods': PromQL query result is empty
 
 ... and for host objects:
 
 exit status | plugin output | example
 --- | --- | ---
-0 or 1 | [UP] \<mapping\> is \<value\> | [UP] ready_workers is 8
-2 | [DOWN] \<mapping\> is \<value\> | [DOWN] ready_workers is 2
+0 or 1 | [UP] '\<mapping\>' is \<value\> | [UP] 'ready_workers' is 8
+2 | [DOWN] '\<mapping\>' is \<value\> | [DOWN] 'ready_workers' is 2
+3 | [DOWN] '\<mapping\>': PromQL query result is empty | [DOWN] 'ready_workers': PromQL query result is empty
 
 This default output may be replaced by providing a string with placeholders in the plugin_output. Some placeholders may cause the processing of a mapping to fail if they cannot be evaluated at check execution, see column "fallible".
 Valid placeholders are:

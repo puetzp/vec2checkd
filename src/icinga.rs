@@ -255,13 +255,14 @@ fn format_plugin_output(
                 "$value" => value.to_string(),
                 "$state" => match &mapping.service {
                     Some(_) => match exit_status {
+                        3 => "UNKNOWN".to_string(),
                         2 => "CRITICAL".to_string(),
                         1 => "WARNING".to_string(),
                         0 => "OK".to_string(),
                         _ => unreachable!(),
                     },
                     None => match exit_status {
-                        2 => "DOWN".to_string(),
+                        2 | 3 => "DOWN".to_string(),
                         0 | 1 => "UP".to_string(),
                         _ => unreachable!(),
                     },
@@ -300,9 +301,13 @@ fn format_plugin_output(
             Some(_) => {
                 // exit_status cannot be zero as per determine_exit_status.
                 let plugin_output = match exit_status {
-                    2 => format!("[CRITICAL] {} is {}", mapping.name, value),
-                    1 => format!("[WARNING] {} is {}", mapping.name, value),
-                    0 => format!("[OK] {} is {}", mapping.name, value),
+                    3 => format!(
+                        "[UNKNOWN] '{}': PromQL query result is empty ",
+                        mapping.name
+                    ),
+                    2 => format!("[CRITICAL] '{}' is {}", mapping.name, value),
+                    1 => format!("[WARNING] '{}' is {}", mapping.name, value),
+                    0 => format!("[OK] '{}' is {}", mapping.name, value),
                     _ => unreachable!(),
                 };
                 return Ok(plugin_output);
@@ -313,8 +318,9 @@ fn format_plugin_output(
                 // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
                 // Also note: exit_status cannot be zero as per determine_exit_status.
                 let plugin_output = match exit_status {
-                    2 => format!("[DOWN] {} is {}", mapping.name, value),
-                    0 | 1 => format!("[UP] {} is {}", mapping.name, value),
+                    3 => format!("[DOWN] '{}': PromQL query result is empty", mapping.name),
+                    2 => format!("[DOWN] '{}' is {}", mapping.name, value),
+                    0 | 1 => format!("[UP] '{}' is {}", mapping.name, value),
                     _ => unreachable!(),
                 };
                 return Ok(plugin_output);
