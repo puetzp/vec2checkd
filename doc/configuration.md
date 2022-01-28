@@ -68,6 +68,8 @@ icinga:
     client_key: '/var/lib/vec2checkd/ssl'
 ```
 
+Note that the Icinga ApiUser username and password (Basic auth.) may also be read from the environment using the variables "V2C_ICINGA_USERNAME" and "V2C_ICINGA_PASSWORD" respectively. When the username and password are defined in both the environment and the configuration file, the values from the environment take precedence over the YAML.
+
 ### Mappings
 
 As hinted above a "mapping" defines PromQL queries to execute regularly and how to map the result of those queries to passive check results that are ultimately sent to the Icinga HTTP API.
