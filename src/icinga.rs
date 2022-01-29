@@ -280,31 +280,27 @@ pub(crate) fn format_plugin_output(
 }
 
 pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: u8) -> String {
-    match &mapping.service {
-        Some(_) => {
-            // exit_status cannot be zero as per determine_exit_status.
-            match exit_status {
-                3 => format!(
-                    "[UNKNOWN] '{}': PromQL query result is empty ",
-                    mapping.name
-                ),
-                2 => format!("[CRITICAL] '{}' is {}", mapping.name, value),
-                1 => format!("[WARNING] '{}' is {}", mapping.name, value),
-                0 => format!("[OK] '{}' is {}", mapping.name, value),
-                _ => unreachable!(),
-            }
+    if mapping.service.is_some() {
+        match exit_status {
+            3 => format!(
+                "[UNKNOWN] '{}': PromQL query result is empty ",
+                mapping.name
+            ),
+            2 => format!("[CRITICAL] '{}' is {}", mapping.name, value),
+            1 => format!("[WARNING] '{}' is {}", mapping.name, value),
+            0 => format!("[OK] '{}' is {}", mapping.name, value),
+            _ => unreachable!(),
         }
-        None => {
-            // This mapping from service states to host states is consistent
-            // with Icinga2's own behaviour; ref:
-            // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
-            // Also note: exit_status cannot be zero as per determine_exit_status.
-            match exit_status {
-                3 => format!("[DOWN] '{}': PromQL query result is empty", mapping.name),
-                2 => format!("[DOWN] '{}' is {}", mapping.name, value),
-                0 | 1 => format!("[UP] '{}' is {}", mapping.name, value),
-                _ => unreachable!(),
-            }
+    } else {
+        // This mapping from service states to host states is consistent
+        // with Icinga2's own behaviour; ref:
+        // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
+        // Also note: exit_status cannot be zero as per determine_exit_status.
+        match exit_status {
+            3 => format!("[DOWN] '{}': PromQL query result is empty", mapping.name),
+            2 => format!("[DOWN] '{}' is {}", mapping.name, value),
+            0 | 1 => format!("[UP] '{}' is {}", mapping.name, value),
+            _ => unreachable!(),
         }
     }
 }
