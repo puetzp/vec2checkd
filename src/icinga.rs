@@ -213,7 +213,7 @@ pub(crate) fn build_payload(
 pub(crate) fn format_plugin_output(
     mapping: &Mapping,
     value: f64,
-    metric: &HashMap<String, String>,
+    metric: HashMap<String, String>,
     exit_status: u8,
 ) -> Result<String, anyhow::Error> {
     let mut plugin_output = mapping.plugin_output.as_ref().unwrap().clone();
