@@ -161,9 +161,8 @@ pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u
 /// the body of the Icinga API request from it.
 pub(crate) fn build_payload(
     mapping: &Mapping,
-    value: f64,
-    metric: &HashMap<String, String>,
     exit_status: u8,
+    plugin_output: String,
     execution_start: u64,
     execution_end: u64,
 ) -> Result<IcingaPayload, anyhow::Error> {
@@ -196,8 +195,6 @@ pub(crate) fn build_payload(
         }
     };
 
-    let plugin_output = format_plugin_output(mapping, value, metric, exit_status)?;
-
     Ok(IcingaPayload {
         obj_type,
         filter,
@@ -213,7 +210,7 @@ pub(crate) fn build_payload(
 /// Replace placeholders in the "plugin output" (in nagios-speak) by interpreting
 /// and expanding the string with parameters from the check result.
 /// Note that this behaves almost exactly like `config::preformat_plugin_output`.
-fn format_plugin_output(
+pub(crate) fn format_plugin_output(
     mapping: &Mapping,
     value: f64,
     metric: &HashMap<String, String>,
