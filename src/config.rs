@@ -277,16 +277,19 @@ pub(crate) fn parse_prom_section(config: &Hash) -> Result<PromConfig, anyhow::Er
 }
 
 pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow::Error> {
-    let section = config
-        .get(&Yaml::from_str("icinga"))
-        .ok_or(MissingFieldError {
-            field: String::from("icinga"),
-        })?
-        .as_hash()
-        .ok_or(ParseFieldError {
-            field: String::from("icinga"),
-            kind: "hash",
-        })?;
+    let section = {
+        let conf_attr = "icinga";
+        config
+            .get(&Yaml::from_str(conf_attr))
+            .ok_or(MissingFieldError {
+                field: String::from(conf_attr),
+            })?
+            .as_hash()
+            .ok_or(ParseFieldError {
+                field: String::from(conf_attr),
+                kind: "hash",
+            })?
+    };
 
     let host = section
         .get(&Yaml::from_str("host"))
@@ -310,33 +313,39 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
         None => None,
     };
 
-    let auth_hash = section
-        .get(&Yaml::from_str("authentication"))
-        .ok_or(MissingFieldError {
-            field: String::from("icinga.authentication"),
-        })?
-        .as_hash()
-        .ok_or(ParseFieldError {
-            field: String::from("icinga.authentication"),
-            kind: "hash",
-        })?;
+    let auth_hash = {
+        let conf_attr = "icinga.authentication";
+        section
+            .get(&Yaml::from_str("authentication"))
+            .ok_or(MissingFieldError {
+                field: String::from(conf_attr),
+            })?
+            .as_hash()
+            .ok_or(ParseFieldError {
+                field: String::from(conf_attr),
+                kind: "hash",
+            })?
+    };
 
-    let auth_method = auth_hash
-        .get(&Yaml::from_str("method"))
-        .ok_or(MissingFieldError {
-            field: String::from("icinga.authentication.method"),
-        })?
-        .as_str()
-        .ok_or(ParseFieldError {
-            field: String::from("icinga.authentication.method"),
-            kind: "string",
-        })?;
+    let auth_method = {
+        let conf_attr = "icinga.authentication.method";
+        auth_hash
+            .get(&Yaml::from_str("method"))
+            .ok_or(MissingFieldError {
+                field: String::from(conf_attr),
+            })?
+            .as_str()
+            .ok_or(ParseFieldError {
+                field: String::from(conf_attr),
+                kind: "string",
+            })?
+    };
 
     let authentication = match auth_method {
         "basic-auth" => {
             let username = {
                 let env_var = "V2C_ICINGA_USERNAME";
-                let conf_attribute = "icinga.authentication.username";
+                let conf_attr = "icinga.authentication.username";
 
                 match env::var(env_var) {
                     Ok(val) => val,
@@ -345,11 +354,11 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
 
                         auth_hash
                             .get(&Yaml::from_str("username"))
-                            .ok_or(anyhow!("failed to read mandatory Icinga ApiUser username from either the environment ('{env_var}') or configuration file ('{conf_attribute}')")
+                            .ok_or(anyhow!("failed to read mandatory Icinga ApiUser username from either the environment ('{env_var}') or configuration file ('{conf_attr}')")
                             )?
                             .as_str()
                             .ok_or(ParseFieldError {
-                                field: conf_attribute.to_string(),
+                                field: conf_attr.to_string(),
                                 kind: "string",
                             })?
                             .to_string()
@@ -359,7 +368,7 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
 
             let password = {
                 let env_var = "V2C_ICINGA_PASSWORD";
-                let conf_attribute = "icinga.authentication.password";
+                let conf_attr = "icinga.authentication.password";
 
                 match env::var(env_var) {
                     Ok(val) => val,
@@ -368,11 +377,11 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
 
                         auth_hash
                             .get(&Yaml::from_str("password"))
-                            .ok_or(anyhow!("failed to read mandatory Icinga ApiUser username from either the environment ('{env_var}') or configuration file ('{conf_attribute}')")
+                            .ok_or(anyhow!("failed to read mandatory Icinga ApiUser username from either the environment ('{env_var}') or configuration file ('{conf_attr}')")
                             )?
                             .as_str()
                             .ok_or(ParseFieldError {
-                                field: conf_attribute.to_string(),
+                                field: conf_attr.to_string(),
                                 kind: "string",
                             })?
                             .to_string()
@@ -383,29 +392,35 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
             IcingaAuth::Basic(IcingaBasicAuth { username, password })
         }
         "x509" => {
-            let client_cert = auth_hash
-                .get(&Yaml::from_str("client_cert"))
-                .ok_or(MissingFieldError {
-                    field: String::from("icinga.authentication.client_cert"),
-                })?
-                .as_str()
-                .ok_or(ParseFieldError {
-                    field: String::from("icinga.authentication.client_cert"),
-                    kind: "string",
-                })
-                .map(|p| PathBuf::from(p))?;
+            let client_cert = {
+                let conf_attr = "icinga.authentication.client_cert";
+                auth_hash
+                    .get(&Yaml::from_str("client_cert"))
+                    .ok_or(MissingFieldError {
+                        field: String::from(conf_attr),
+                    })?
+                    .as_str()
+                    .ok_or(ParseFieldError {
+                        field: String::from(conf_attr),
+                        kind: "string",
+                    })
+                    .map(|p| PathBuf::from(p))?
+            };
 
-            let client_key = auth_hash
-                .get(&Yaml::from_str("client_key"))
-                .ok_or(MissingFieldError {
-                    field: String::from("icinga.authentication.client_key"),
-                })?
-                .as_str()
-                .ok_or(ParseFieldError {
-                    field: String::from("icinga.authentication.client_key"),
-                    kind: "string",
-                })
-                .map(|p| PathBuf::from(p))?;
+            let client_key = {
+                let conf_attr = "icinga.authentication.client_key";
+                auth_hash
+                    .get(&Yaml::from_str("client_key"))
+                    .ok_or(MissingFieldError {
+                        field: String::from(conf_attr),
+                    })?
+                    .as_str()
+                    .ok_or(ParseFieldError {
+                        field: String::from(conf_attr),
+                        kind: "string",
+                    })
+                    .map(|p| PathBuf::from(p))?
+            };
 
             IcingaAuth::X509(IcingaX509Auth {
                 client_cert,
