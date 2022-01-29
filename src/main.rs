@@ -176,7 +176,11 @@ async fn main() -> Result<(), anyhow::Error> {
                     out
                 };
 
-                let performance_data = Some(icinga::format_performance_data(&inner_mapping, value));
+                let performance_data = if inner_mapping.send_performance_data {
+                    Some(icinga::format_performance_data(&inner_mapping, value))
+                } else {
+                    None
+                };
 
                 let exec_end = util::get_unix_timestamp().with_context(|| {
                     "failed to retrieve UNIX timestamp to measure event execution"

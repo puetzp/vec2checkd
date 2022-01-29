@@ -94,7 +94,7 @@ mappings:
 
     # Check interval or how often á mapping is processed in seconds. Must be in the range 10..=3600.
     # OPTIONAL, default 60.
-    interval: '<check_interval_in_seconds>'
+    interval: <check_interval_in_seconds>
 
     # Use warning and critical thresholds to check the PromQL query result value and determine the Icinga host/service state.
     # Each threshold must be a Nagios range.
@@ -110,6 +110,10 @@ mappings:
     # This is further explained below.
     # OPTIONAL.
     plugin_output: '<custom_output>'
+
+    # If or if not to send performance data as part of a passive check result.
+    # OPTIONAL, default true.
+    send_performance_data: <true|false>
 ```
 
 The syntax of _Nagios ranges_ is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).

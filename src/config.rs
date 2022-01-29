@@ -204,6 +204,14 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         None => Duration::from_secs(60),
     };
 
+    let send_performance_data = match items.get(&Yaml::from_str("send_performance_data")) {
+        Some(p) => p.as_bool().ok_or(ParseFieldError {
+            field: format!("mappings.{}.send_performance_data", name),
+            kind: "boolean",
+        })?,
+        None => true,
+    };
+
     Ok(Mapping {
         name,
         query,
@@ -212,6 +220,7 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         interval,
         plugin_output,
         thresholds,
+        send_performance_data,
         last_apply: Instant::now(),
     })
 }

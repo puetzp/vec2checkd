@@ -27,6 +27,7 @@ pub(crate) struct Mapping {
     pub interval: Duration,
     pub last_apply: Instant,
     pub plugin_output: Option<String>,
+    pub send_performance_data: bool,
 }
 
 pub(crate) struct PromConfig {
