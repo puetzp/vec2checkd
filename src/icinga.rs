@@ -138,7 +138,8 @@ pub(crate) struct IcingaPayload {
     obj_type: String,
     exit_status: u8,
     plugin_output: String,
-    performance_data: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    performance_data: Option<String>,
     filter: String,
     filter_vars: serde_json::Value,
     ttl: u64,
@@ -170,7 +171,7 @@ pub(crate) fn build_payload(
     mapping: &Mapping,
     exit_status: u8,
     plugin_output: String,
-    performance_data: String,
+    performance_data: Option<String>,
     execution_start: u64,
     execution_end: u64,
 ) -> Result<IcingaPayload, anyhow::Error> {
