@@ -9,6 +9,7 @@ pub(crate) fn compute_delta(mapping: &Mapping) -> Duration {
         .saturating_sub(mapping.last_apply.elapsed())
 }
 
+#[inline]
 pub(crate) fn get_unix_timestamp() -> Result<u64, anyhow::Error> {
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
