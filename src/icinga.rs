@@ -103,11 +103,17 @@ impl IcingaClient {
 
         let request = builder.build()?;
 
-        debug!("Send request with parameters: {:?}", request);
-        debug!("Send request with JSON body: {}", body);
+        debug!(
+            "'{}': Send request with parameters: {:?}",
+            mapping.name, request
+        );
+        debug!("'{}': Send request with JSON body: {}", mapping.name, body);
         let response = self.client.execute(request).await?;
 
-        debug!("Process Icinga API response: {:?}", response);
+        debug!(
+            "'{}': Process Icinga API response: {:?}",
+            mapping.name, response
+        );
         response.error_for_status()?;
         Ok(())
     }

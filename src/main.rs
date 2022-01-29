@@ -171,7 +171,9 @@ async fn main() -> Result<(), anyhow::Error> {
                     crate::icinga::default_plugin_output(&inner_mapping, value, exit_status)
                 } else {
                     debug!("'{}': Process dynamic parts of custom plugin output template: {}", inner_mapping.name, inner_mapping.plugin_output.as_ref().unwrap());
-                    crate::icinga::format_plugin_output(&inner_mapping, value, metric, exit_status)?
+                    let out = crate::icinga::format_plugin_output(&inner_mapping, value, metric, exit_status)?;
+                    debug!("'{}': Use the following custom plugin output: {}", inner_mapping.name, out);
+                    out
                 };
 
                 let exec_end = util::get_unix_timestamp().with_context(|| {
