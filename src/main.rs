@@ -4,7 +4,7 @@ mod icinga;
 mod types;
 mod util;
 
-use crate::icinga::IcingaClient;
+use crate::icinga::*;
 use crate::types::Mapping;
 use crate::util::*;
 use anyhow::anyhow;
@@ -168,13 +168,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 let plugin_output = if inner_mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", inner_mapping.name);
-                    crate::icinga::default_plugin_output(&inner_mapping, value, exit_status)
+                    icinga::default_plugin_output(&inner_mapping, value, exit_status)
                 } else {
                     debug!("'{}': Process dynamic parts of custom plugin output template: {}", inner_mapping.name, inner_mapping.plugin_output.as_ref().unwrap());
-                    let out = crate::icinga::format_plugin_output(&inner_mapping, value, metric, exit_status)?;
+                    let out = icinga::format_plugin_output(&inner_mapping, value, metric, exit_status)?;
                     debug!("'{}': Use the following custom plugin output: {}", inner_mapping.name, out);
                     out
                 };
+
+                let performance_data = icinga::format_performance_data(&inner_mapping, value);
 
                 let exec_end = util::get_unix_timestamp().with_context(|| {
                     "failed to retrieve UNIX timestamp to measure event execution"
@@ -184,6 +186,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     &inner_mapping,
                     exit_status,
                     plugin_output,
+                    performance_data,
                     exec_start,
                     exec_end,
                 )?;

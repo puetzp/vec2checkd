@@ -138,6 +138,7 @@ pub(crate) struct IcingaPayload {
     obj_type: String,
     exit_status: u8,
     plugin_output: String,
+    performance_data: String,
     filter: String,
     filter_vars: serde_json::Value,
     ttl: u64,
@@ -169,6 +170,7 @@ pub(crate) fn build_payload(
     mapping: &Mapping,
     exit_status: u8,
     plugin_output: String,
+    performance_data: String,
     execution_start: u64,
     execution_end: u64,
 ) -> Result<IcingaPayload, anyhow::Error> {
@@ -207,6 +209,7 @@ pub(crate) fn build_payload(
         ttl,
         exit_status,
         plugin_output,
+        performance_data,
         filter_vars,
         execution_start,
         execution_end,
@@ -311,6 +314,30 @@ pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: 
             _ => unreachable!(),
         }
     }
+}
+
+/// Return performance data string corresponding to this mapping and value.
+/// Attach warning and critical thresholds to the performance data string when
+/// they are configured in the mapping.
+/// See https://nagios-plugins.org/doc/guidelines.html#AEN200 for the
+/// expected format.
+#[inline]
+pub(crate) fn format_performance_data(mapping: &Mapping, value: f64) -> String {
+    let mut performance_data = format!("'{}'={};", mapping.name, value);
+
+    if let Some(warning) = &mapping.thresholds.warning {
+        performance_data.push_str(&warning.to_string());
+    }
+
+    performance_data.push(';');
+
+    if let Some(critical) = &mapping.thresholds.critical {
+        performance_data.push_str(&critical.to_string());
+    }
+
+    performance_data.push_str(";;");
+
+    performance_data
 }
 
 #[cfg(test)]
