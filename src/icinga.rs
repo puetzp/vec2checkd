@@ -216,98 +216,94 @@ pub(crate) fn format_plugin_output(
     metric: &HashMap<String, String>,
     exit_status: u8,
 ) -> Result<String, anyhow::Error> {
-    if let Some(template) = &mapping.plugin_output {
-        let mut plugin_output = template.to_string();
+    let mut plugin_output = mapping.plugin_output.as_ref().unwrap().clone();
 
-        // Note that if you want to insert a label value from the
-        // PromQL query result, retrieving that value may fail at
-        // runtime because the closure below actually allows for
-        // a greater range of valid characters than is available
-        // for label values, which is [a-zA-Z_][a-zA-Z0-9_]* as per
-        // the Prometheus documentation.
-        while let Some((position, var_ident)) =
-            plugin_output.char_indices().find(|(_, c)| *c == '$')
-        {
-            let mut identifier = plugin_output[position + 1..]
-                .chars()
-                .take_while(|c| c.is_alphabetic() || *c == '_' || *c == '.')
-                .collect::<String>();
+    // Note that if you want to insert a label value from the
+    // PromQL query result, retrieving that value may fail at
+    // runtime because the closure below actually allows for
+    // a greater range of valid characters than is available
+    // for label values, which is [a-zA-Z_][a-zA-Z0-9_]* as per
+    // the Prometheus documentation.
+    while let Some((position, var_ident)) = plugin_output.char_indices().find(|(_, c)| *c == '$') {
+        let mut identifier = plugin_output[position + 1..]
+            .chars()
+            .take_while(|c| c.is_alphabetic() || *c == '_' || *c == '.')
+            .collect::<String>();
 
-            identifier.insert(0, var_ident);
+        identifier.insert(0, var_ident);
 
-            let replacement = match identifier.as_str() {
-                "$value" => value.to_string(),
-                "$state" => match &mapping.service {
-                    Some(_) => match exit_status {
-                        3 => "UNKNOWN".to_string(),
-                        2 => "CRITICAL".to_string(),
-                        1 => "WARNING".to_string(),
-                        0 => "OK".to_string(),
-                        _ => unreachable!(),
-                    },
-                    None => match exit_status {
-                        2 | 3 => "DOWN".to_string(),
-                        0 | 1 => "UP".to_string(),
-                        _ => unreachable!(),
-                    },
+        let replacement = match identifier.as_str() {
+            "$value" => value.to_string(),
+            "$state" => match &mapping.service {
+                Some(_) => match exit_status {
+                    3 => "UNKNOWN".to_string(),
+                    2 => "CRITICAL".to_string(),
+                    1 => "WARNING".to_string(),
+                    0 => "OK".to_string(),
+                    _ => unreachable!(),
                 },
-                "$exit_status" => exit_status.to_string(),
-                "$metric" => metric
-                    .get("__name__")
+                None => match exit_status {
+                    2 | 3 => "DOWN".to_string(),
+                    0 | 1 => "UP".to_string(),
+                    _ => unreachable!(),
+                },
+            },
+            "$exit_status" => exit_status.to_string(),
+            "$metric" => metric
+                .get("__name__")
+                .ok_or(MissingLabelError {
+                    identifier: identifier.clone(),
+                    label: "__name__".to_string(),
+                })?
+                .clone(),
+            _ if identifier.starts_with("$labels.") => {
+                let metric_key = identifier.as_str().split_once('.').unwrap().1;
+                metric
+                    .get(metric_key)
                     .ok_or(MissingLabelError {
                         identifier: identifier.clone(),
-                        label: "__name__".to_string(),
+                        label: metric_key.to_string(),
                     })?
-                    .clone(),
-                _ if identifier.starts_with("$labels.") => {
-                    let metric_key = identifier.as_str().split_once('.').unwrap().1;
-                    metric
-                        .get(metric_key)
-                        .ok_or(MissingLabelError {
-                            identifier: identifier.clone(),
-                            label: metric_key.to_string(),
-                        })?
-                        .clone()
-                }
-                _ => {
-                    bail!("the plugin output placeholder '{}' is invalid", identifier)
-                }
-            };
-
-            let range = position..position + identifier.len();
-
-            plugin_output.replace_range(range, &replacement);
-        }
-
-        Ok(plugin_output)
-    } else {
-        match &mapping.service {
-            Some(_) => {
-                // exit_status cannot be zero as per determine_exit_status.
-                let plugin_output = match exit_status {
-                    3 => format!(
-                        "[UNKNOWN] '{}': PromQL query result is empty ",
-                        mapping.name
-                    ),
-                    2 => format!("[CRITICAL] '{}' is {}", mapping.name, value),
-                    1 => format!("[WARNING] '{}' is {}", mapping.name, value),
-                    0 => format!("[OK] '{}' is {}", mapping.name, value),
-                    _ => unreachable!(),
-                };
-                return Ok(plugin_output);
+                    .clone()
             }
-            None => {
-                // This mapping from service states to host states is consistent
-                // with Icinga2's own behaviour; ref:
-                // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
-                // Also note: exit_status cannot be zero as per determine_exit_status.
-                let plugin_output = match exit_status {
-                    3 => format!("[DOWN] '{}': PromQL query result is empty", mapping.name),
-                    2 => format!("[DOWN] '{}' is {}", mapping.name, value),
-                    0 | 1 => format!("[UP] '{}' is {}", mapping.name, value),
-                    _ => unreachable!(),
-                };
-                return Ok(plugin_output);
+            _ => {
+                bail!("the plugin output placeholder '{}' is invalid", identifier)
+            }
+        };
+
+        let range = position..position + identifier.len();
+
+        plugin_output.replace_range(range, &replacement);
+    }
+
+    Ok(plugin_output)
+}
+
+pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: u8) -> String {
+    match &mapping.service {
+        Some(_) => {
+            // exit_status cannot be zero as per determine_exit_status.
+            match exit_status {
+                3 => format!(
+                    "[UNKNOWN] '{}': PromQL query result is empty ",
+                    mapping.name
+                ),
+                2 => format!("[CRITICAL] '{}' is {}", mapping.name, value),
+                1 => format!("[WARNING] '{}' is {}", mapping.name, value),
+                0 => format!("[OK] '{}' is {}", mapping.name, value),
+                _ => unreachable!(),
+            }
+        }
+        None => {
+            // This mapping from service states to host states is consistent
+            // with Icinga2's own behaviour; ref:
+            // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
+            // Also note: exit_status cannot be zero as per determine_exit_status.
+            match exit_status {
+                3 => format!("[DOWN] '{}': PromQL query result is empty", mapping.name),
+                2 => format!("[DOWN] '{}' is {}", mapping.name, value),
+                0 | 1 => format!("[UP] '{}' is {}", mapping.name, value),
+                _ => unreachable!(),
             }
         }
     }

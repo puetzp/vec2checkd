@@ -166,7 +166,11 @@ async fn main() -> Result<(), anyhow::Error> {
                     }
                 };
 
-                let plugin_output = crate::icinga::format_plugin_output(&inner_mapping, value, &metric, exit_status)?;
+                let plugin_output = if inner_mapping.plugin_output.is_none() {
+                    crate::icinga::default_plugin_output(&inner_mapping, value, exit_status)
+                } else {
+                    crate::icinga::format_plugin_output(&inner_mapping, value, &metric, exit_status)?
+                };
 
                 let exec_end = util::get_unix_timestamp().with_context(|| {
                     "failed to retrieve UNIX timestamp to measure event execution"
