@@ -279,6 +279,8 @@ pub(crate) fn format_plugin_output(
     Ok(plugin_output)
 }
 
+/// Return the default plugin output.
+#[inline]
 pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: u8) -> String {
     if mapping.service.is_some() {
         match exit_status {

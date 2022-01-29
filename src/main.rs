@@ -167,8 +167,10 @@ async fn main() -> Result<(), anyhow::Error> {
                 };
 
                 let plugin_output = if inner_mapping.plugin_output.is_none() {
+                    debug!("'{}': Use default plugin output as no custom output template is configured", inner_mapping.name);
                     crate::icinga::default_plugin_output(&inner_mapping, value, exit_status)
                 } else {
+                    debug!("'{}': Process dynamic parts of custom plugin output template: {}", inner_mapping.name, inner_mapping.plugin_output.as_ref().unwrap());
                     crate::icinga::format_plugin_output(&inner_mapping, value, &metric, exit_status)?
                 };
 
