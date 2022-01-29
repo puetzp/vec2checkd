@@ -116,7 +116,9 @@ mappings:
     send_performance_data: <true|false>
 ```
 
-The syntax of _Nagios ranges_ is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
+**NOTE:** The syntax of _Nagios ranges_ is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
+
+#### Details on plugin output
 
 The default _plugin output_ is as follows for service objects:
 
@@ -165,3 +167,20 @@ mappings:
 ```
 
 A more complete example can be found in the [default configuration](../defaults/config.yaml) of the debian package.
+
+#### Details on performance data
+
+The default _performance data_ that is sent as part of a passive check result has the following format:
+
+```
+'<mapping>'=<value>;<warn>;<crit>;;
+
+# Example:
+
+'running pods'=15;@5:10;@5;;
+```
+
+The warning and critical thresholds are only inserted into the performance data string if they were configured in the mapping. Min and max values are ignored. The name (or "label") of the performance data string is single-quoted as it may contain whitespace.
+
+**NOTE:** The syntax of performance data is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#AEN200).
+
