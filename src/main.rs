@@ -171,6 +171,15 @@ async fn main() -> Result<(), anyhow::Error> {
                     "failed to retrieve UNIX timestamp to measure event execution"
                 })?;
 
+                let payload = icinga::build_payload(
+                    &inner_mapping,
+                    value,
+                    &metric,
+                    exit_status,
+                    exec_start,
+                    exec_end,
+                )?;
+
                 debug!(
                     "'{}': stop measuring processing of mapping at {}",
                     inner_mapping.name, exec_end
@@ -179,11 +188,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 inner_icinga_client
                     .send(
                         &inner_mapping,
-                        value,
-                        &metric,
-                        exit_status,
-                        exec_start,
-                        exec_end,
+                        payload
                     )
                     .await
                     .with_context(|| "failed to send passive check result to Icinga")?;

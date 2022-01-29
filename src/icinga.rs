@@ -79,21 +79,8 @@ impl IcingaClient {
     pub async fn send(
         &self,
         mapping: &Mapping,
-        value: f64,
-        metric: &HashMap<String, String>,
-        exit_status: u8,
-        execution_start: u64,
-        execution_end: u64,
+        payload: IcingaPayload,
     ) -> Result<(), anyhow::Error> {
-        let payload = build_payload(
-            &mapping,
-            value,
-            metric,
-            exit_status,
-            execution_start,
-            execution_end,
-        )?;
-
         let body = serde_json::to_string(&payload)?;
 
         let mut builder = self
@@ -140,7 +127,7 @@ impl Default for IcingaClient {
 /// sends passive check results; ref:
 /// https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/#process-check-result
 #[derive(Serialize)]
-struct IcingaPayload {
+pub(crate) struct IcingaPayload {
     #[serde(rename = "type")]
     obj_type: String,
     exit_status: u8,
@@ -172,7 +159,7 @@ pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, value: f64) -> u
 
 /// Take a mapping and all additional computed parameters and build
 /// the body of the Icinga API request from it.
-fn build_payload(
+pub(crate) fn build_payload(
     mapping: &Mapping,
     value: f64,
     metric: &HashMap<String, String>,
