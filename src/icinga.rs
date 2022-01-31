@@ -294,10 +294,7 @@ pub(crate) fn format_plugin_output(
 pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: u8) -> String {
     if mapping.service.is_some() {
         match exit_status {
-            3 => format!(
-                "[UNKNOWN] '{}': PromQL query result is empty ",
-                mapping.name
-            ),
+            3 => format!("[UNKNOWN] '{}': PromQL query result is empty", mapping.name),
             2 => format!("[CRITICAL] '{}' is {}", mapping.name, value),
             1 => format!("[WARNING] '{}' is {}", mapping.name, value),
             0 => format!("[OK] '{}' is {}", mapping.name, value),

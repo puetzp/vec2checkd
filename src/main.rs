@@ -150,7 +150,10 @@ async fn main() -> Result<(), anyhow::Error> {
                         "failed to parse PromQL query result as instant vector"
                     ))?;
 
-                let (value, metric, exit_status) = match instant_vector.get(0) {
+                // Get the first item of the PromQL query result set and apply all needed operations.
+                // Ignore any customizations etc. when the result set is empty and default to
+                // UNKNOWN/DOWN state with a static output.
+                let (plugin_output, exit_status, performance_data) = match instant_vector.get(0) {
                     Some(first_vec) => {
                         debug!("'{}': Process only the first item from the PromQL vector result set", inner_mapping.name);
                         let value = f64::from_str(first_vec.sample().value())
@@ -158,28 +161,37 @@ async fn main() -> Result<(), anyhow::Error> {
                         let metric = first_vec.metric().clone();
                         let exit_status = icinga::determine_exit_status(&inner_mapping.thresholds, value);
 
-                        (value, metric, exit_status)
+                        let plugin_output = if inner_mapping.plugin_output.is_none() {
+                            debug!("'{}': Use default plugin output as no custom output template is configured", inner_mapping.name);
+                            icinga::default_plugin_output(&inner_mapping, value, exit_status)
+                        } else {
+                            debug!("'{}': Process dynamic parts of custom plugin output template: {}", inner_mapping.name, inner_mapping.plugin_output.as_ref().unwrap());
+                            let out = icinga::format_plugin_output(&inner_mapping, value, metric, exit_status)?;
+                            debug!("'{}': Use the following custom plugin output: {}", inner_mapping.name, out);
+                            out
+                        };
+
+                        let performance_data = if inner_mapping.send_performance_data {
+                            Some(icinga::format_performance_data(&inner_mapping, value))
+                        } else {
+                            None
+                        };
+
+                       (plugin_output, exit_status, performance_data)
                     },
                     None => {
-                        warn!("'{}': PromQL query result is empty, default to 'UNKNOWN' status (exit code '3')", inner_mapping.name);
-                        (0.0, std::collections::HashMap::new(), 3)
+                        warn!("'{}': PromQL query result is empty, default to 'UNKNOWN|DOWN' status (exit code '3')", inner_mapping.name);
+                        let value = 0.0;
+                        let exit_status = 3;
+                        let plugin_output = icinga::default_plugin_output(&inner_mapping, value, exit_status);
+                        let performance_data = if inner_mapping.send_performance_data {
+                            Some(icinga::format_performance_data(&inner_mapping, value))
+                        } else {
+                            None
+                        };
+
+                       (plugin_output, exit_status, performance_data)
                     }
-                };
-
-                let plugin_output = if inner_mapping.plugin_output.is_none() {
-                    debug!("'{}': Use default plugin output as no custom output template is configured", inner_mapping.name);
-                    icinga::default_plugin_output(&inner_mapping, value, exit_status)
-                } else {
-                    debug!("'{}': Process dynamic parts of custom plugin output template: {}", inner_mapping.name, inner_mapping.plugin_output.as_ref().unwrap());
-                    let out = icinga::format_plugin_output(&inner_mapping, value, metric, exit_status)?;
-                    debug!("'{}': Use the following custom plugin output: {}", inner_mapping.name, out);
-                    out
-                };
-
-                let performance_data = if inner_mapping.send_performance_data {
-                    Some(icinga::format_performance_data(&inner_mapping, value))
-                } else {
-                    None
                 };
 
                 let exec_end = util::get_unix_timestamp().with_context(|| {
