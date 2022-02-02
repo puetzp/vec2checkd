@@ -6,17 +6,21 @@ The obvious choice to monitor anything that exports time-series data scraped by 
 
 ## Installation
 
-First know that a pre-built .deb package will be provided in the future!
-
-Prerequisites: rustc >= v1.58.0 and cargo >= v1.58.0
+Prerequisites: Rust >= v1.58.0
 
 ### .deb package
 
-If you want to build and install vec2checkd from a .deb package, first install the `cargo deb` command:
+To install the .deb package either download from GitHub and
+
+`dpkg -i <path_to_package>`
+
+OR
+
+Build it yourself by first installing the `cargo deb` command:
 
 `cargo install cargo-deb`
 
-Then build the project:
+and then building the package:
 
 `cargo deb`
 
