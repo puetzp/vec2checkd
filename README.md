@@ -13,7 +13,9 @@ Providing a means to create objects would necessitate to re-create most of the l
 
 ## Installation
 
-Prerequesites: rustc >= v1.58.0 and cargo >= v1.58.0
+==Note that a pre-built .deb package will be provided in the future.==
+
+Prerequisites: rustc >= v1.58.0 and cargo >= v1.58.0
 
 ### .deb package
 
