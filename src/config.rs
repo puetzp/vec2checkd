@@ -204,12 +204,44 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         None => Duration::from_secs(60),
     };
 
-    let send_performance_data = match items.get(&Yaml::from_str("send_performance_data")) {
-        Some(p) => p.as_bool().ok_or(ParseFieldError {
-            field: format!("mappings.{}.send_performance_data", name),
-            kind: "boolean",
-        })?,
-        None => true,
+    let performance_data = {
+        match items.get(&Yaml::from_str("performance_data")) {
+            Some(t) => {
+                let t_hash = t.as_hash().ok_or(ParseFieldError {
+                    field: format!("mappings.{}.performance_data", name),
+                    kind: "hash",
+                })?;
+
+                if t_hash.is_empty() {
+                    PerformanceData::default()
+                } else {
+                    let enabled = match t_hash.get(&Yaml::from_str("enabled")) {
+                        Some(val) => val.as_bool().ok_or(ParseFieldError {
+                            field: format!("mappings.{}.performance_data.enabled", name),
+                            kind: "boolean",
+                        })?,
+                        None => true,
+                    };
+
+                    let label = match t_hash.get(&Yaml::from_str("label")) {
+                        Some(val) => {
+                            let label = val
+                                .as_str()
+                                .ok_or(ParseFieldError {
+                                    field: format!("mappings.{}.performance_data.label", name),
+                                    kind: "string",
+                                })?
+                                .to_string();
+                            Some(label)
+                        }
+                        None => None,
+                    };
+
+                    PerformanceData { enabled, label }
+                }
+            }
+            None => PerformanceData::default(),
+        }
     };
 
     Ok(Mapping {
@@ -220,7 +252,7 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         interval,
         plugin_output,
         thresholds,
-        send_performance_data,
+        performance_data,
         last_apply: Instant::now(),
     })
 }
@@ -475,7 +507,7 @@ mod tests {
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
             plugin_output: Some(String::from("Do not worry, $name is alright")),
-            send_performance_data: false,
+            performance_data: PerformanceData::default(),
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
@@ -495,7 +527,7 @@ mod tests {
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
             plugin_output: Some(String::from("Query $query was successful")),
-            send_performance_data: false,
+            performance_data: PerformanceData::default(),
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
@@ -517,7 +549,7 @@ mod tests {
             plugin_output: Some(String::from(
                 "Check '$name' is executed every $interval seconds",
             )),
-            send_performance_data: false,
+            performance_data: PerformanceData::default(),
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
@@ -542,7 +574,7 @@ mod tests {
             plugin_output: Some(String::from(
                 "Result value is $value (critical at: '$thresholds.critical')",
             )),
-            send_performance_data: false,
+            performance_data: PerformanceData::default(),
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
@@ -569,7 +601,7 @@ mod tests {
 warning at: '$thresholds.warning'
 critical at: '$thresholds.critical'"#,
             )),
-            send_performance_data: false,
+            performance_data: PerformanceData::default(),
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(

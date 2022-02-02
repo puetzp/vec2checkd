@@ -171,7 +171,7 @@ async fn main() -> Result<(), anyhow::Error> {
                             out
                         };
 
-                        let performance_data = if inner_mapping.send_performance_data {
+                        let performance_data = if inner_mapping.performance_data.enabled {
                             Some(icinga::format_performance_data(&inner_mapping, value))
                         } else {
                             None
@@ -184,7 +184,7 @@ async fn main() -> Result<(), anyhow::Error> {
                         let value = 0.0;
                         let exit_status = 3;
                         let plugin_output = icinga::default_plugin_output(&inner_mapping, value, exit_status);
-                        let performance_data = if inner_mapping.send_performance_data {
+                        let performance_data = if inner_mapping.performance_data.enabled {
                             Some(icinga::format_performance_data(&inner_mapping, value))
                         } else {
                             None

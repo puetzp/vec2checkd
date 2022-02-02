@@ -27,7 +27,7 @@ pub(crate) struct Mapping {
     pub interval: Duration,
     pub last_apply: Instant,
     pub plugin_output: Option<String>,
-    pub send_performance_data: bool,
+    pub performance_data: PerformanceData,
 }
 
 pub(crate) struct PromConfig {
@@ -54,4 +54,19 @@ pub(crate) struct IcingaBasicAuth {
 pub(crate) struct IcingaX509Auth {
     pub client_cert: PathBuf,
     pub client_key: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PerformanceData {
+    pub enabled: bool,
+    pub label: Option<String>,
+}
+
+impl Default for PerformanceData {
+    fn default() -> Self {
+        PerformanceData {
+            enabled: true,
+            label: None,
+        }
+    }
 }
