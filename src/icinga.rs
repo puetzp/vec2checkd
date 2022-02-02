@@ -321,7 +321,13 @@ pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: 
 /// expected format.
 #[inline]
 pub(crate) fn format_performance_data(mapping: &Mapping, value: f64) -> String {
-    let mut performance_data = format!("'{}'={};", mapping.name, value);
+    let label = mapping
+        .performance_data
+        .label
+        .as_ref()
+        .unwrap_or(&mapping.name);
+
+    let mut performance_data = format!("'{}'={};", label, value);
 
     if let Some(warning) = &mapping.thresholds.warning {
         performance_data.push_str(&warning.to_string());
