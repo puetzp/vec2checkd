@@ -362,8 +362,9 @@ mod tests {
             plugin_output: Some(String::from(
                 "[$state] Result value is $value (critical at: '@10:20')",
             )),
+            send_performance_data: false,
         };
-        let result = format_plugin_output(&mapping, 5.5, &HashMap::new(), 0).unwrap();
+        let result = format_plugin_output(&mapping, 5.5, HashMap::new(), 0).unwrap();
         assert_eq!(
             result,
             String::from("[UP] Result value is 5.5 (critical at: '@10:20')")
@@ -386,12 +387,13 @@ mod tests {
             plugin_output: Some(String::from(
                 "I need that $labels.random_label in my output and the metric value '$metric' while we're at it",
             )),
+            send_performance_data: false,
         };
         let mut metric = HashMap::new();
         metric.insert("__name__".to_string(), "up".to_string());
         metric.insert("random_label".to_string(), "random_value".to_string());
 
-        let result = format_plugin_output(&mapping, 0.0, &metric, 0).unwrap();
+        let result = format_plugin_output(&mapping, 0.0, metric, 0).unwrap();
         assert_eq!(
             result,
             String::from(

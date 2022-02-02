@@ -475,6 +475,7 @@ mod tests {
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
             plugin_output: Some(String::from("Do not worry, $name is alright")),
+            send_performance_data: false,
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
@@ -494,6 +495,7 @@ mod tests {
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
             plugin_output: Some(String::from("Query $query was successful")),
+            send_performance_data: false,
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
@@ -515,6 +517,7 @@ mod tests {
             plugin_output: Some(String::from(
                 "Check '$name' is executed every $interval seconds",
             )),
+            send_performance_data: false,
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
@@ -539,6 +542,7 @@ mod tests {
             plugin_output: Some(String::from(
                 "Result value is $value (critical at: '$thresholds.critical')",
             )),
+            send_performance_data: false,
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
@@ -565,6 +569,7 @@ mod tests {
 warning at: '$thresholds.warning'
 critical at: '$thresholds.critical'"#,
             )),
+            send_performance_data: false,
         };
         preformat_plugin_output(&mut mapping).unwrap();
         assert_eq!(
