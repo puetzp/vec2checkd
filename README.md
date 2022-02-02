@@ -31,9 +31,7 @@ The .deb package also provides a systemd unit file and a default configuration f
 
 ### Binary only
 
-You probably know the drill:
-
-`cargo build --release`
+`cargo install vec2checkd`
 
 ## Configuration
 
