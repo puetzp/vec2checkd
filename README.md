@@ -33,7 +33,7 @@ You probably know the drill:
 
 ## Configuration
 
-See the [documentation on configuration](doc/configurtation.md).
+See the [documentation on configuration](doc/configuration.md).
 
 
 
