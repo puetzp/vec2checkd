@@ -6,7 +6,7 @@ The obvious choice to monitor anything that exports time-series data scraped by 
 
 ## Limitations
 
-* In contrast to (signalilo)[https://github.com/vshn/signalilo] vec2checkd is intended to interact with pre-defined host and service objects in Icinga2 and update those objects regularly. So **host and service objects are not created/deleted or managed in any way by vec2checkd** because Icinga2 provides excellent tools to create any type of object even in bulk, e.g. by using the [Director](https://github.com/Icinga/icingaweb2-module-director).
+* In contrast to [signalilo](https://github.com/vshn/signalilo) vec2checkd is intended to interact with pre-defined host and service objects in Icinga2 and update those objects regularly. So **host and service objects are not created/deleted or managed in any way by vec2checkd** because Icinga2 provides excellent tools to create any type of object even in bulk, e.g. by using the [Director](https://github.com/Icinga/icingaweb2-module-director).
 Providing a means to create objects would necessitate to re-create most of the logic that the Director already provides.
 * At this point only the first item of a PromQL result vector is processed further and the result ultimately sent to Icinga2. So (for now) make sure that your PromQL query yields exactly one vector. *This change in future versions*
 * Only the PromQL result type "vector" is interpreted. *This might change in future versions* 
