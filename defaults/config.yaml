@@ -8,7 +8,7 @@ icinga:
     client_cert: '<path_to_cert>'
     client_key: '<path_to_key>'
 mappings: {}
-  # 'ready pods of my-app':
+  # 'ready replicas of my-app':
   #   query: 'kube_deployment_status_replicas_ready{deployment="my-app"}'
   #   host: 'Kubernetes production cluster'
   #   service: 'my-app: number of ready pods'
@@ -19,4 +19,4 @@ mappings: {}
   #   plugin_output: '[$state] $labels.deployment (namespace: $labels.exported_namespace) has $value running pods'
   #   performance_data:
   #     enabled: true
-  #     label: 'pods'
+  #     label: 'replicas'
