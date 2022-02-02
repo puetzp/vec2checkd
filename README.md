@@ -114,4 +114,9 @@ The second mapping will only be applied every 300 seconds alongside the first on
 
 There is a little more going on here, so check the [documentation](doc/configuration.md) about details on the placeholders in the plugin_output field, the thresholds, the performance_data object etc.
 
+## ToDos
 
+* Extend the Prometheus configuration object with authentication options (as the server may be shielded by a reverse proxy).
+* Extend the Prometheus and Icinga configuration objects with custom proxy options (setting HTTPS_PROXY and HTTP_PROXY in the environment would cause *both* clients to connect to Prometheus/Icinga2 via this proxy).
+* Provide a means to process multiple result vectors when the PromQL query result type is "vector".
+* Also provide a means to interpret a PromQL query result of type "matrix".
