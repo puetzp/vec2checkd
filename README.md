@@ -31,6 +31,9 @@ You probably know the drill:
 
 `cargo build --release`
 
+## Configuration
+
+See the [documentation on configuration](doc/configurtation.md).
 
 
 
