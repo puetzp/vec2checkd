@@ -4,13 +4,6 @@ This program/daemon executes PromQL queries via the Prometheus HTTP API, transla
 
 The obvious choice to monitor anything that exports time-series data scraped by Prometheus et al. is Grafana and/or Alertmanager. However this little tool might come in handy when you/your organization relies primarily on Icinga2 for infrastructure monitoring but wants to integrate some services that export time-series data into the mix. In this case setting up Grafana and/or Alertmanager alongside Icinga2 may be overkill (or not ... I guess it "_depends_").
 
-## Limitations
-
-* In contrast to [signalilo](https://github.com/vshn/signalilo) vec2checkd is intended to interact with pre-defined host and service objects in Icinga2 and update those objects regularly. So **host and service objects are not created/deleted or managed in any way by vec2checkd** because Icinga2 provides excellent tools to create any type of object even in bulk, e.g. by using the [Director](https://github.com/Icinga/icingaweb2-module-director).
-Providing a means to create objects would necessitate to re-create most of the logic that the Director already provides.
-* At this point only the first item of a PromQL result vector is processed further and the result ultimately sent to Icinga2. So (for now) make sure that your PromQL query yields exactly one vector. *This change in future versions*
-* Only the PromQL result type "vector" is interpreted. *This might change in future versions*
-
 ## Installation
 
 First know that a pre-built .deb package will be provided in the future!
@@ -113,6 +106,13 @@ The second mapping will only be applied every 300 seconds alongside the first on
 ```
 
 There is a little more going on here, so check the [documentation](doc/configuration.md) about details on the placeholders in the plugin_output field, the thresholds, the performance_data object etc.
+
+## Limitations
+
+* In contrast to [signalilo](https://github.com/vshn/signalilo) vec2checkd is intended to interact with pre-defined host and service objects in Icinga2 and update those objects regularly. So **host and service objects are not created/deleted or managed in any way by vec2checkd** because Icinga2 provides excellent tools to create any type of object even in bulk, e.g. by using the [Director](https://github.com/Icinga/icingaweb2-module-director).
+Providing a means to create objects would necessitate to re-create most of the logic that the Director already provides.
+* At this point only the first item of a PromQL result vector is processed further and the result ultimately sent to Icinga2. So (for now) make sure that your PromQL query yields exactly one vector. *This change in future versions*
+* Only the PromQL result type "vector" is interpreted. *This might change in future versions*
 
 ## ToDos
 
