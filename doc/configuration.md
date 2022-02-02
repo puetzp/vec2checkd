@@ -189,7 +189,7 @@ The default _performance data_ that is sent as part of a passive check result ha
 
 The warning and critical thresholds are only inserted into the performance data string if they were configured in the mapping. Min and max values are not represented. The name (or "label") of the performance data string is single-quoted as it may contain whitespace. **By default the label matches the mapping name**. The label may also be customized, which can be desirable if the mapping name happens to be quite wordy and you want to keep the performance data label clear and concise. See the following examples:
 
-```
+```yaml
 # Given the mapping:
 mappings:
   'Successful ingress requests (Test)':
