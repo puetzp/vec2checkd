@@ -111,9 +111,16 @@ mappings:
     # OPTIONAL.
     plugin_output: '<custom_output>'
 
-    # If or if not to send performance data as part of a passive check result.
-    # OPTIONAL, default true.
-    send_performance_data: <true|false>
+    # Define if and how to send performance data as part of a passive check result.
+    # OPTIONAL.
+    performance_data:
+      # Choose if performance data is sent.
+      # OPTIONAL, default true.
+      enabled: true|false
+
+      # Customize the performance data label if desired.
+      # OPTIONAL.
+      label: '<custom_label>'
 ```
 
 **NOTE:** The syntax of _Nagios ranges_ is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
@@ -173,14 +180,51 @@ A more complete example can be found in the [default configuration](../defaults/
 The default _performance data_ that is sent as part of a passive check result has the following format:
 
 ```
-'<mapping>'=<value>;<warn>;<crit>;;
+'<label>'=<value>;<warn>;<crit>;;
 
 # Example:
 
-'running pods'=15;@5:10;@5;;
+'ready_pods'=15;@5:10;@5;;
 ```
 
-The warning and critical thresholds are only inserted into the performance data string if they were configured in the mapping. Min and max values are ignored. The name (or "label") of the performance data string is single-quoted as it may contain whitespace.
+The warning and critical thresholds are only inserted into the performance data string if they were configured in the mapping. Min and max values are not represented. The name (or "label") of the performance data string is single-quoted as it may contain whitespace. **By default the label matches the mapping name**. The label may also be customized, which can be desirable if the mapping name happens to be quite wordy and you want to keep the performance data label clear and concise. See the following examples:
+
+```
+# Given the mapping:
+mappings:
+  'Successful ingress requests (Test)':
+    query: 'sum(rate(nginx_ingress_controller_requests{cluster="test",status=~"2.."}[5m]))'
+    host: 'Kubernetes (Test-Cluster)'
+    service: 'Successful ingress requests'
+    interval: 300
+    thresholds:
+      critical: '@500'
+    plugin_output: '[$state] Nginx ingress controller processes $value requests per second (HTTP 2xx)'
+    # Note that 'enabled' is true by default.
+    performance_data: {}
+
+# ... the performance data string looks like:
+
+'Successful ingress requests (Test)'=20;;@0:500;;
+
+# Now configure a custom label:
+mappings:
+  'Successful ingress requests (Test)':
+    query: 'sum(rate(nginx_ingress_controller_requests{cluster="test",status=~"2.."}[5m]))'
+    host: 'Kubernetes (Test-Cluster)'
+    service: 'Successful ingress requests'
+    interval: 300
+    thresholds:
+      critical: '@500'
+    plugin_output: '[$state] Nginx ingress controller processes $value requests per second (HTTP 2xx)'
+    # Note that 'enabled' is true by default.
+    performance_data:
+      label: 'requests'
+
+# ... and the performance data string looks like:
+
+'requests'=20;;@0:500;;
+```
 
 **NOTE:** The syntax of performance data is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#AEN200).
 

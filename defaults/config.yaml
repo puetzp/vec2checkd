@@ -17,4 +17,6 @@ mappings: {}
   #     warning: '@21:'
   #     critical: '@20'
   #   plugin_output: '[$state] $labels.deployment (namespace: $labels.exported_namespace) has $value running pods'
-  #   send_performance_data: true
+  #   performance_data:
+  #     enabled: true
+  #     label: 'pods'
