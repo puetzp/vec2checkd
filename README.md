@@ -13,7 +13,7 @@ Providing a means to create objects would necessitate to re-create most of the l
 
 ## Installation
 
-==Note that a pre-built .deb package will be provided in the future.==
+First know that a pre-built .deb package will be provided in the future!
 
 Prerequisites: rustc >= v1.58.0 and cargo >= v1.58.0
 
@@ -27,6 +27,8 @@ Then build the project:
 
 `cargo deb`
 
+The .deb package also provides a systemd unit file and a default configuration file in `/etc/vec2checkd/config.yaml`.
+
 ### Binary only
 
 You probably know the drill:
@@ -35,8 +37,83 @@ You probably know the drill:
 
 ## Configuration
 
-See the [documentation on configuration](doc/configuration.md).
+vec2checkd reads its configuration from a single YAML file (default is `/etc/vec2checkd/config.yaml`. A custom location may be provided using the `--config` command-line argument. See the [documentation on configuration](doc/configuration.md) for a detailed explanation on the contents of the YAML file.
 
+### Examples
 
+Below is an example configuration that starts out pretty simple relying primarily on defaults set by vec2checkd.
+
+```yaml
+# Connects to 'http://localhost:9090' by default.
+prometheus: {}
+icinga:
+  host: 'https://my-satellite.exmaple.com:5665'
+  authentication:
+    method: 'x509'
+    client_cert: '/var/lib/vec2checkd/ssl/kubernetes-monitoring.crt'
+    client_key: '/var/lib/vec2checkd/ssl/kubernetes-monitoring.key'
+mappings:
+  'Failed ingress requests':
+    query: 'sum(rate(nginx_ingress_controller_requests{cluster="production",status!~"2.."}[5m]))'
+    host: 'Kubernetes Production'
+    service: 'Failed ingress requests'
+
+  ...
+```
+
+As per the defaults that come into play here, this mapping will execute the PromQL query every 60 seconds and send the following default plugin output and performance data to Icinga2 in order to update the service object "Failed ingress requests" on host "Kubernetes Production" with status 0 (OK) as no thresholds have been defined.
+
+```
+# plugin output
+[OK] 'Failed ingress requests' is 34.4393348197696023
+
+# performance data
+'Failed ingress requests'=34.4393348197696023;;;;
+```
+
+Now extend the configuration with another example mapping that builts on the existing one.
+
+```yaml
+prometheus: {}
+icinga:
+  host: 'https://my-satellite.exmaple.com:5665'
+  authentication:
+    method: 'x509'
+    client_cert: '/var/lib/vec2checkd/ssl/kubernetes-monitoring.crt'
+    client_key: '/var/lib/vec2checkd/ssl/kubernetes-monitoring.key'
+mappings:
+  'Failed ingress requests':
+    query: 'sum(rate(nginx_ingress_controller_requests{cluster="production",status!~"2.."}[5m]))'
+    host: 'Kubernetes Production'
+    service: 'Failed ingress requests'
+
+  'Successful ingress requests':
+    query: 'sum(rate(nginx_ingress_controller_requests{cluster="production",status=~"2.."}[5m]))'
+    host: 'Kubernetes Production'
+    service: 'Successful ingress requests'
+    interval: 300
+    # In words: "WARN if the value dips below 200 or CRIT when the value dips below 100".
+    thresholds:
+      warning: '@200'
+      critical: '@100'
+    plugin_output: '[$state] Nginx ingress controller processes $value requests per second (HTTP 2xx)'
+    performance_data:
+      enabled: true
+      label: 'requests'
+
+  ...
+```
+
+The second mapping will only be applied every 300 seconds alongside the first one. The warning and critical thresholds are also considered before the final check result is sent to Icinga2. Given the PromQL query evaluates to a value of "130.0", vec2checkd sends status 1 (WARNING) and the following plugin output and performance data to the API.
+
+```
+# plugin output
+[WARNING] Nginx ingress controller processes 150.0 requests per second (HTTP 2xx)
+
+# performance data
+'requests'=150.0;@0:200;@0:100;;
+```
+
+There is a little more going on here, so check the [documentation](doc/configuration.md) about details on the placeholders in the plugin_output field, the thresholds, the performance_data object etc.
 
 
