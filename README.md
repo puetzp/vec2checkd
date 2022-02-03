@@ -56,7 +56,7 @@ mappings:
   ...
 ```
 
-As per the defaults that come into play here, this mapping will execute the PromQL query every 60 seconds and send the following default plugin output and performance data to Icinga2 in order to update the service object "Failed ingress requests" on host "Kubernetes Production" with status 0 (OK) as no thresholds have been defined.
+As per the defaults that come into play here, this mapping will execute the PromQL query every 60 seconds and send the following default plugin output and performance data to Icinga2 in order to update the service object "Failed ingress requests" on host "Kubernetes Production". The status will  be 0 (OK) as no thresholds have been defined.
 
 ```
 # plugin output
@@ -99,14 +99,14 @@ mappings:
   ...
 ```
 
-The second mapping will only be applied every 300 seconds alongside the first one. The warning and critical thresholds are also considered before the final check result is sent to Icinga2. Given the PromQL query evaluates to a value of "130.0", vec2checkd sends status 1 (WARNING) and the following plugin output and performance data to the API.
+The second mapping will only be applied every 300 seconds. The warning and critical thresholds are also considered before the final check result is sent to Icinga2. Given the PromQL query evaluates to a value of "130.0", vec2checkd sends status 1 (WARNING) and the following plugin output and performance data to the API.
 
 ```
 # plugin output
-[WARNING] Nginx ingress controller processes 150.0 requests per second (HTTP 2xx)
+[WARNING] Nginx ingress controller processes 130.0 requests per second (HTTP 2xx)
 
 # performance data
-'requests'=150.0;@0:200;@0:100;;
+'requests'=130.0;@0:200;@0:100;;
 ```
 
 There is a little more going on here, so check the [documentation](doc/configuration.md) about details on the placeholders in the plugin_output field, the thresholds, the performance_data object etc.
@@ -115,7 +115,7 @@ There is a little more going on here, so check the [documentation](doc/configura
 
 * In contrast to [signalilo](https://github.com/vshn/signalilo) vec2checkd is intended to interact with pre-defined host and service objects in Icinga2 and update those objects regularly. So **host and service objects are not created/deleted or managed in any way by vec2checkd** because Icinga2 provides excellent tools to create any type of object even in bulk, e.g. by using the [Director](https://github.com/Icinga/icingaweb2-module-director).
 Providing a means to create objects would necessitate to re-create most of the logic that the Director already provides.
-* At this point only the first item of a PromQL result vector is processed further and the result ultimately sent to Icinga2. So (for now) make sure that your PromQL query yields exactly one vector. *This change in future versions*
+* At this point only the first item of a PromQL result vector is processed further and the result ultimately sent to Icinga2. So (for now) make sure that your PromQL query yields exactly one vector. *This might change in future versions*
 * Only the PromQL result type "vector" is interpreted. *This might change in future versions*
 
 ## ToDos
