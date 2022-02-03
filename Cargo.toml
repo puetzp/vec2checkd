@@ -3,6 +3,7 @@ name = "vec2checkd"
 version = "0.1.0"
 authors = ["Peter Sebastian Puetz <peter.puetz@itenos.de>"]
 edition = "2021"
+keywords = [ "icinga", "prometheus", "daemon", "api", "promql", "nagios" ]
 description = "Execute PromQL queries and send results as passive check results to Icinga2"
 readme = "README.md"
 license = "MIT"
