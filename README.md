@@ -60,7 +60,7 @@ As per the defaults that come into play here, this mapping will execute the Prom
 
 ```
 # plugin output
-[OK] 'Failed ingress requests' is 34.4393348197696023
+[OK] 'Failed ingress requests' is 34.43
 
 # performance data
 'Failed ingress requests'=34.4393348197696023;;;;
@@ -103,7 +103,7 @@ The second mapping will only be applied every 300 seconds. The warning and criti
 
 ```
 # plugin output
-[WARNING] Nginx ingress controller processes 130.0 requests per second (HTTP 2xx)
+[WARNING] Nginx ingress controller processes 130 requests per second (HTTP 2xx)
 
 # performance data
 'requests'=130.0;@0:200;@0:100;;
