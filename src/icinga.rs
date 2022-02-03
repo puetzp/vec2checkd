@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::types::*;
+use crate::util;
 use anyhow::bail;
 use log::debug;
 use reqwest::{Certificate, Identity};
@@ -243,7 +244,7 @@ pub(crate) fn format_plugin_output(
         identifier.insert(0, var_ident);
 
         let replacement = match identifier.as_str() {
-            "$value" => format!("{:.2}", value),
+            "$value" => util::truncate_to_string(value),
             "$state" => match &mapping.service {
                 Some(_) => match exit_status {
                     3 => "UNKNOWN".to_string(),
@@ -292,12 +293,13 @@ pub(crate) fn format_plugin_output(
 /// Return the default plugin output.
 #[inline]
 pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: u8) -> String {
+    let value = util::truncate_to_string(value);
     if mapping.service.is_some() {
         match exit_status {
             3 => format!("[UNKNOWN] '{}': PromQL query result is empty", mapping.name),
-            2 => format!("[CRITICAL] '{}' is {:.2}", mapping.name, value),
-            1 => format!("[WARNING] '{}' is {:.2}", mapping.name, value),
-            0 => format!("[OK] '{}' is {:.2}", mapping.name, value),
+            2 => format!("[CRITICAL] '{}' is {}", mapping.name, value),
+            1 => format!("[WARNING] '{}' is {}", mapping.name, value),
+            0 => format!("[OK] '{}' is {}", mapping.name, value),
             _ => unreachable!(),
         }
     } else {
@@ -307,8 +309,8 @@ pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: 
         // Also note: exit_status cannot be zero as per determine_exit_status.
         match exit_status {
             3 => format!("[DOWN] '{}': PromQL query result is empty", mapping.name),
-            2 => format!("[DOWN] '{}' is {:.2}", mapping.name, value),
-            0 | 1 => format!("[UP] '{}' is {:.2}", mapping.name, value),
+            2 => format!("[DOWN] '{}' is {}", mapping.name, value),
+            0 | 1 => format!("[UP] '{}' is {}", mapping.name, value),
             _ => unreachable!(),
         }
     }
@@ -370,10 +372,17 @@ mod tests {
             )),
             performance_data: PerformanceData::default(),
         };
+        // Test with a fractional number first.
         let result = format_plugin_output(&mapping, 5.5, HashMap::new(), 0).unwrap();
         assert_eq!(
             result,
-            String::from("[UP] Result value is 5.5 (critical at: '@10:20')")
+            String::from("[UP] Result value is 5.50 (critical at: '@10:20')")
+        );
+        // Then test without the fractional, i.e. fractional is zero.
+        let result = format_plugin_output(&mapping, 5.0, HashMap::new(), 0).unwrap();
+        assert_eq!(
+            result,
+            String::from("[UP] Result value is 5 (critical at: '@10:20')")
         );
     }
 

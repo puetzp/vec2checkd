@@ -1,5 +1,6 @@
 use crate::types::Mapping;
 use anyhow::Context;
+use std::num::FpCategory;
 use std::time::{Duration, SystemTime};
 
 #[inline]
@@ -17,4 +18,12 @@ pub(crate) fn get_unix_timestamp() -> Result<u64, anyhow::Error> {
         .as_secs();
 
     Ok(timestamp)
+}
+
+#[inline]
+pub(crate) fn truncate_to_string(value: f64) -> String {
+    match &value.fract().classify() {
+        FpCategory::Zero => value.to_string(),
+        _ => format!("{:.2}", value),
+    }
 }
