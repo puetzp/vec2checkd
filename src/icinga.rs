@@ -325,17 +325,27 @@ pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: 
 pub(crate) fn format_performance_data(mapping: &Mapping, value: f64) -> String {
     format!(
         "'{}'={}{};{};{};;",
-        mapping.performance_data.label.unwrap_or(mapping.name),
+        mapping
+            .performance_data
+            .label
+            .as_ref()
+            .unwrap_or(&mapping.name),
         value,
-        mapping.performance_data.uom.unwrap_or_default(),
+        mapping
+            .performance_data
+            .uom
+            .as_ref()
+            .unwrap_or(&String::new()),
         mapping
             .thresholds
             .warning
+            .as_ref()
             .map(|w| w.to_string())
             .unwrap_or_default(),
         mapping
             .thresholds
             .critical
+            .as_ref()
             .map(|c| c.to_string())
             .unwrap_or_default(),
     )
@@ -410,5 +420,76 @@ mod tests {
                 "I need that random_value in my output and the metric value 'up' while we're at it"
             )
         );
+    }
+
+    #[test]
+    fn test_format_performance_data() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: None,
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default(),
+        };
+        let value = 5.0;
+        let result = format!("'foobar'=5;;;;");
+        assert_eq!(format_performance_data(&mapping, value), result);
+
+        let value = 5.5;
+        let result = format!("'foobar'=5.5;;;;");
+        assert_eq!(format_performance_data(&mapping, value), result);
+    }
+
+    #[test]
+    fn test_format_performance_data_with_thresholds() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: Some(NagiosRange::from("@10").unwrap()),
+                critical: Some(NagiosRange::from("@100").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default(),
+        };
+        let value = 5.5;
+        let result = format!("'foobar'=5.5;@0:10;@0:100;;");
+        assert_eq!(format_performance_data(&mapping, value), result);
+    }
+
+    #[test]
+    fn test_format_performance_data_with_thresholds_and_uom() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: Some(NagiosRange::from("@10").unwrap()),
+                critical: Some(NagiosRange::from("@100").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData {
+                enabled: true,
+                label: Some("alternative".to_string()),
+                uom: Some("c".to_string()),
+            },
+        };
+        let value = 5.5;
+        let result = format!("'alternative'=5.5c;@0:10;@0:100;;");
+        assert_eq!(format_performance_data(&mapping, value), result);
     }
 }
