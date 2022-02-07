@@ -237,7 +237,25 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
                         None => None,
                     };
 
-                    PerformanceData { enabled, label }
+                    let uom = match t_hash.get(&Yaml::from_str("uom")) {
+                        Some(val) => {
+                            let label = val
+                                .as_str()
+                                .ok_or(ParseFieldError {
+                                    field: format!("mappings.{}.performance_data.uom", name),
+                                    kind: "string",
+                                })?
+                                .to_string();
+                            Some(label)
+                        }
+                        None => None,
+                    };
+
+                    PerformanceData {
+                        enabled,
+                        label,
+                        uom,
+                    }
                 }
             }
             None => PerformanceData::default(),

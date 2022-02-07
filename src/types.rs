@@ -60,6 +60,7 @@ pub(crate) struct IcingaX509Auth {
 pub(crate) struct PerformanceData {
     pub enabled: bool,
     pub label: Option<String>,
+    pub uom: Option<String>,
 }
 
 impl Default for PerformanceData {
@@ -67,6 +68,7 @@ impl Default for PerformanceData {
         PerformanceData {
             enabled: true,
             label: None,
+            uom: None,
         }
     }
 }

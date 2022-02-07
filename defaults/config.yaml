@@ -20,3 +20,4 @@ mappings: {}
   #   performance_data:
   #     enabled: true
   #     label: 'replicas'
+  #     uom: ''

@@ -121,6 +121,10 @@ mappings:
       # Customize the performance data label if desired.
       # OPTIONAL.
       label: '<custom_label>'
+
+      # Customize the unit of measurement if desired.
+      # OPTIONAL.
+      uom: '<custom_unit_of_measurement>'
 ```
 
 **NOTE:** The syntax of _Nagios ranges_ is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
@@ -180,14 +184,14 @@ A more complete example can be found in the [default configuration](../defaults/
 The default _performance data_ that is sent as part of a passive check result has the following format:
 
 ```
-'<label>'=<value>;<warn>;<crit>;;
+'<label>'=<value><uom>;<warn>;<crit>;;
 
 # Example:
 
 'ready_pods'=15;@5:10;@5;;
 ```
 
-The warning and critical thresholds are only inserted into the performance data string if they were configured in the mapping. Min and max values are not represented. The name (or "label") of the performance data string is single-quoted as it may contain whitespace. **By default the label matches the mapping name**. The label may also be customized, which can be desirable if the mapping name happens to be quite wordy and you want to keep the performance data label clear and concise. See the following examples:
+The warning and critical thresholds are only inserted into the performance data string if they were configured in the mapping. Min and max values are not represented. The name (or "label") of the performance data string is single-quoted as it may contain whitespace. **By default the label matches the mapping name**. The label may also be customized, which can be desirable if the mapping name happens to be quite wordy and you want to keep the performance data label clear and concise. A custom unit of measurement (UOM) may also be provided. See the following examples:
 
 ```yaml
 # Given the mapping:
@@ -226,5 +230,5 @@ mappings:
 'requests'=20;;@0:500;;
 ```
 
-**NOTE:** The syntax of performance data is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#AEN200).
+**NOTE:** The syntax of performance data (including thresholds and UOM) is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#AEN200).
 
