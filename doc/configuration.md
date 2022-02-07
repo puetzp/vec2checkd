@@ -127,7 +127,7 @@ mappings:
       uom: '<custom_unit_of_measurement>'
 ```
 
-**NOTE:** The syntax of _Nagios ranges_ is defined in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
+**NOTE:** _Nagios ranges_ and _UOMs_ are explained in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
 
 #### Details on plugin output
 
