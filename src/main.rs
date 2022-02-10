@@ -7,17 +7,14 @@ mod util;
 use crate::icinga::*;
 use crate::types::Mapping;
 use crate::util::*;
-use anyhow::anyhow;
 use anyhow::Context;
 use gumdrop::Options;
-use log::{debug, error, info, warn};
-use prometheus_http_query::{Client as PromClient, InstantVector};
+use log::{debug, error, info};
+use prometheus_http_query::Client as PromClient;
 use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
 use std::time::Instant;
-
-type TaskResult = Result<Result<(), anyhow::Error>, tokio::task::JoinError>;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/vec2checkd/config.yaml";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -116,120 +113,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             mapping.last_apply = task_start;
 
-            let inner_prom_client = prom_client.clone();
-            let prom_query = mapping.query.to_string();
-
-            let inner_icinga_client = icinga_client.clone();
-
-            let inner_mapping = mapping.clone();
-
-            let join_handle: TaskResult = tokio::spawn(async move {
-                let exec_start = util::get_unix_timestamp().with_context(|| {
-                    "failed to retrieve UNIX timestamp to measure event execution"
-                })?;
-
-                debug!(
-                    "'{}': start processing mapping at {}",
-                    inner_mapping.name, exec_start
-                );
-
-                debug!(
-                    "'{}': execute PromQL query '{}'",
-                    inner_mapping.name, prom_query
-                );
-
-                let vector = InstantVector(prom_query);
-
-                let abstract_vector = inner_prom_client
-                    .query(vector, None, None)
-                    .await
-                    .with_context(|| "failed to execute PromQL query")?;
-
-                let instant_vector = abstract_vector
-                    .as_instant()
-                    .ok_or(anyhow!(
-                        "failed to parse PromQL query result as instant vector"
-                    ))?;
-
-                // Get the first item of the PromQL query result set and apply all needed operations.
-                // Ignore any customizations etc. when the result set is empty and default to
-                // UNKNOWN/DOWN state with a static output.
-                let (plugin_output, exit_status, performance_data) = match instant_vector.get(0) {
-                    Some(first_vec) => {
-                        debug!("'{}': Process only the first item from the PromQL vector result set", inner_mapping.name);
-                        let value = first_vec.sample().value();
-                        let metric = first_vec.metric().clone();
-                        let exit_status = icinga::determine_exit_status(&inner_mapping.thresholds, value);
-
-                        let plugin_output = if inner_mapping.plugin_output.is_none() {
-                            debug!("'{}': Use default plugin output as no custom output template is configured", inner_mapping.name);
-                            icinga::default_plugin_output(&inner_mapping, value, exit_status)
-                        } else {
-                            debug!("'{}': Process dynamic parts of custom plugin output template: {}", inner_mapping.name, inner_mapping.plugin_output.as_ref().unwrap());
-                            let out = icinga::format_plugin_output(&inner_mapping, value, metric, exit_status)?;
-                            debug!("'{}': Use the following custom plugin output: {}", inner_mapping.name, out);
-                            out
-                        };
-
-                        let performance_data = if inner_mapping.performance_data.enabled {
-                            Some(icinga::format_performance_data(&inner_mapping, value))
-                        } else {
-                            None
-                        };
-
-                       (plugin_output, exit_status, performance_data)
-                    },
-                    None => {
-                        warn!("'{}': PromQL query result is empty, default to 'UNKNOWN|DOWN' status (exit code '3')", inner_mapping.name);
-                        let value = 0.0;
-                        let exit_status = 3;
-                        let plugin_output = icinga::default_plugin_output(&inner_mapping, value, exit_status);
-                        let performance_data = if inner_mapping.performance_data.enabled {
-                            Some(icinga::format_performance_data(&inner_mapping, value))
-                        } else {
-                            None
-                        };
-
-                       (plugin_output, exit_status, performance_data)
-                    }
-                };
-
-                let exec_end = util::get_unix_timestamp().with_context(|| {
-                    "failed to retrieve UNIX timestamp to measure event execution"
-                })?;
-
-                let payload = icinga::build_payload(
-                    &inner_mapping,
-                    exit_status,
-                    plugin_output,
-                    performance_data,
-                    exec_start,
-                    exec_end,
-                )?;
-
-                debug!(
-                    "'{}': stop measuring processing of mapping at {}",
-                    inner_mapping.name, exec_end
-                );
-
-                inner_icinga_client
-                    .send(
-                        &inner_mapping,
-                        payload
-                    )
-                    .await
-                    .with_context(|| "failed to send passive check result to Icinga")?;
-
-                debug!(
-                    "'{}': passive check result was successfully send to Icinga",
-                    inner_mapping.name
-                );
-
-                Ok(())
-            })
-            .await;
-
-            match join_handle {
+            match execute_task(prom_client.clone(), icinga_client.clone(), mapping.clone()).await {
                 Ok(Ok(())) => info!(
                     "'{}': task finished in {} millisecond(s), next execution in ~{} second(s)",
                     mapping.name,
