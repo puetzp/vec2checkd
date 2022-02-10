@@ -90,7 +90,34 @@ async fn main() -> Result<(), anyhow::Error> {
         IcingaClient::new(&c).with_context(|| "failed to initialize Icinga API client")?
     };
 
-    info!("Enter the main check loop");
+    info!("Execute every check once regardless of the configured intervals");
+    for mapping in mappings.iter_mut() {
+        let task_start = Instant::now();
+
+        debug!(
+            "{}: update last application clock time, set to {:?}",
+            mapping.name, task_start
+        );
+
+        mapping.last_apply = task_start;
+
+        match execute_task(prom_client.clone(), icinga_client.clone(), mapping.clone()).await {
+            Ok(Ok(())) => info!(
+                "'{}': task finished in {} millisecond(s), next execution in ~{} second(s)",
+                mapping.name,
+                task_start.elapsed().as_millis(),
+                compute_delta(&mapping).as_secs()
+            ),
+            Ok(Err(e)) => error!(
+                "'{}': failed to finish task: {}",
+                mapping.name,
+                e.root_cause()
+            ),
+            Err(e) => error!("'{}': failed to finish task: {}", mapping.name, e),
+        }
+    }
+
+    info!("Enter the periodic check loop");
     loop {
         let sleep_secs = mappings
             .iter()
