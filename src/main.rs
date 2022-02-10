@@ -81,7 +81,8 @@ async fn main() -> Result<(), anyhow::Error> {
         let c = config::parse_prom_section(&config)
             .with_context(|| "failed to parse Prometheus section from configuration")?;
         info!("Initialize Prometheus API client");
-        PromClient::from(&c.host).with_context(|| "failed to initialize Prometheus API client")?
+        PromClient::from_str(&c.host)
+            .with_context(|| "failed to initialize Prometheus API client")?
     };
 
     let icinga_client = {
@@ -156,8 +157,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 let (plugin_output, exit_status, performance_data) = match instant_vector.get(0) {
                     Some(first_vec) => {
                         debug!("'{}': Process only the first item from the PromQL vector result set", inner_mapping.name);
-                        let value = f64::from_str(first_vec.sample().value())
-                            .with_context(|| "failed to convert value of PromQL query result to float")?;
+                        let value = first_vec.sample().value();
                         let metric = first_vec.metric().clone();
                         let exit_status = icinga::determine_exit_status(&inner_mapping.thresholds, value);
 

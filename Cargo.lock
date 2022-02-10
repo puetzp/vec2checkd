@@ -571,9 +571,9 @@ dependencies = [
 
 [[package]]
 name = "prometheus-http-query"
-version = "0.3.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e738d5715c5e078ac13cfde479c6b3417e447e8a0d3a974bbfe4cbd1d1a8978d"
+checksum = "29ed9cc1af3d40e7c06c3935619a8ff5895bcbbfa2b69c0f4eb9147535c92fd1"
 dependencies = [
  "reqwest",
  "serde",
