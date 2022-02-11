@@ -32,7 +32,21 @@ The .deb package also provides a systemd unit file and a default configuration f
 
 ## Configuration
 
-vec2checkd reads its configuration from a single YAML file (default is `/etc/vec2checkd/config.yaml`. A custom location may be provided using the `--config` command-line argument. See the [documentation on configuration](doc/configuration.md) for a detailed explanation on the contents of the YAML file.
+The systemd unit is designed to run multiple instances of vec2checkd using (templates)[https://www.freedesktop.org/software/systemd/man/systemd.service.html#Service%20Templates]. A new instance can be created like this:
+
+```
+$ ln -s -T /lib/systemd/system/vec2checkd@.service /etc/systemd/system/vec2checkd@<instance_name>.service
+$ systemctl enable /etc/systemd/system/vec2checkd@<instance_name>.service
+```
+
+Each instance reads its configuration from `/etc/vec2checkd/conf.d/<instance_name>.yaml`. Though a custom location may be provided by overriding the settings in the unit file (the flag `--config` specifically). The expected content of each configuration is described (here)[doc/configuration.md].
+
+For simple use-cases a single instance of vec2checkd will suffice of course. The instantation of multiple daemons may help in some cases however, e.g. when:
+
+* the "mappings" section of a single configuration becomes huge and better be split up into pieces.
+* the queries in the "mappings" section target different systems (e.g. multiple K8s clusters) and may better be split up for clarity.
+* different Prometheus servers are queried.
+* passive check results are sent to different Icinga servers.
 
 ### Examples
 
