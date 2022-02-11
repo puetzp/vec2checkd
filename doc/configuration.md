@@ -2,7 +2,7 @@
 
 ## General
 
-The default location of the configuration file  is `/etc/vec2checkd/config.yaml`. But another location can be provided via the `--config` flag. In the most general case nothing other than this file is required to get up and running.
+As was mentioned in the README each instance of vec2checkd by default reads its configuration file from `/etc/vec2checkd/conf.d/<instance_name>.yaml`. But another location can be provided via the `--config` flag. In the most general case nothing other than this file is required to get up and running.
 
 The overall structure of the configuration file is pretty simple:
 
