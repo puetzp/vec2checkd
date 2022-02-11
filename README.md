@@ -32,14 +32,14 @@ The .deb package also provides a systemd unit file and a default configuration f
 
 ## Configuration
 
-The systemd unit is designed to run multiple instances of vec2checkd using (templates)[https://www.freedesktop.org/software/systemd/man/systemd.service.html#Service%20Templates]. A new instance can be created like this:
+The systemd unit is designed to run multiple instances of vec2checkd using [templates](https://www.freedesktop.org/software/systemd/man/systemd.service.html#Service%20Templates). A new instance can be created like this:
 
 ```
 $ ln -s -T /lib/systemd/system/vec2checkd@.service /etc/systemd/system/vec2checkd@<instance_name>.service
 $ systemctl enable /etc/systemd/system/vec2checkd@<instance_name>.service
 ```
 
-Each instance reads its configuration from `/etc/vec2checkd/conf.d/<instance_name>.yaml`. Though a custom location may be provided by overriding the settings in the unit file (the flag `--config` specifically). The expected content of each configuration is described (here)[doc/configuration.md].
+Each instance reads its configuration from `/etc/vec2checkd/conf.d/<instance_name>.yaml`. Though a custom location may be provided by overriding the settings in the unit file (the flag `--config` specifically). The expected content of each configuration is described [here](doc/configuration.md).
 
 For simple use-cases a single instance of vec2checkd will suffice of course. The instantation of multiple daemons may help in some cases however, e.g. when:
 
