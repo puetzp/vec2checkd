@@ -102,18 +102,24 @@ async fn main() -> Result<(), anyhow::Error> {
         mapping.last_apply = task_start;
 
         match execute_task(prom_client.clone(), icinga_client.clone(), mapping.clone()).await {
-            Ok(Ok(())) => info!(
-                "'{}': task finished in {} millisecond(s), next execution in ~{} second(s)",
+            Ok(Ok(())) => debug!(
+                "'{}': task finished in {} millisecond(s); next execution in ~{} second(s)",
                 mapping.name,
                 task_start.elapsed().as_millis(),
                 compute_delta(&mapping).as_secs()
             ),
-            Ok(Err(e)) => error!(
-                "'{}': failed to finish task: {}",
+            Ok(Err(err)) => error!(
+                "'{}': failed to finish task: {}; next execution in ~{} second(s)",
                 mapping.name,
-                e.root_cause()
+                err.root_cause(),
+                compute_delta(&mapping).as_secs()
             ),
-            Err(e) => error!("'{}': failed to finish task: {}", mapping.name, e),
+            Err(err) => error!(
+                "'{}': failed to finish task: {}; next execution in ~{} second(s)",
+                mapping.name,
+                err,
+                compute_delta(&mapping).as_secs()
+            ),
         }
     }
 
