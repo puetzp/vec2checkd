@@ -163,6 +163,8 @@ $state | the resulting host/service state that was computed using thresholds, e.
 $exit_status | the exit status that was computed using thresholds, e.g. 0/1/2 or 0 when no thresholds were defined | no
 $thresholds.warning | the warning Nagios range if one was configured | no
 $thresholds.critical | the critical Nagios range if one was configured | no
+$performance_data.label | the custom label for performance data if one was configured | no
+$performance_data.uom | the unit-of-measurement of performance data if one was configured | no
 $metric | the metric name of the PromQL query result vector if any | yes
 $labels.<label_name> | an arbitrary label value that is part of the PromQL query result vector | yes
 

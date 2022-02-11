@@ -53,6 +53,24 @@ fn preformat_plugin_output(mapping: &mut Mapping) -> Result<(), anyhow::Error> {
             }
         }
 
+        let placeholder = "$performance_data.label";
+        if plugin_output.contains(placeholder) {
+            if let Some(replacement) = &mapping.performance_data.label {
+                *plugin_output = plugin_output.replace(placeholder, replacement);
+            } else {
+                bail!("'{}': cannot replace plugin output placeholder '{}' as no unit-of-measurement for performance data was configured", placeholder, mapping.name);
+            }
+        }
+
+        let placeholder = "$performance_data.uom";
+        if plugin_output.contains(placeholder) {
+            if let Some(replacement) = &mapping.performance_data.uom {
+                *plugin_output = plugin_output.replace(placeholder, replacement);
+            } else {
+                bail!("'{}': cannot replace plugin output placeholder '{}' as no performance data label was configured", placeholder, mapping.name);
+            }
+        }
+
         Ok(())
     } else {
         Ok(())
@@ -629,6 +647,35 @@ critical at: '$thresholds.critical'"#,
 warning at: '@0:10'
 critical at: '@10:20'"#
             )
+        );
+    }
+
+    #[test]
+    fn test_preformat_plugin_output_with_threshold_and_performance_data() {
+        let mut mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(String::from(
+                "Result value is $value$performance_data.uom (critical at: '$thresholds.critical')",
+            )),
+            performance_data: PerformanceData {
+                enabled: true,
+                label: None,
+                uom: Some("%".to_string()),
+            },
+        };
+        preformat_plugin_output(&mut mapping).unwrap();
+        assert_eq!(
+            mapping.plugin_output.unwrap(),
+            String::from("Result value is $value% (critical at: '@10:20')")
         );
     }
 }
