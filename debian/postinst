@@ -4,6 +4,7 @@ set -e
 
 if [ "$1" = "configure" ]; then
     adduser --system --group --quiet --no-create-home vec2check
+    mkdir -p /etc/vec2checkd/conf.d
 fi
 
 #DEBHELPER#

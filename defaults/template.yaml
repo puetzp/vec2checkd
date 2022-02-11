@@ -1,13 +1,13 @@
-prometheus: {}
+# prometheus: {}
   # host: 'http://localhost:9090'
-icinga:
+# icinga: {}
   # host: 'https://localhost:5665'
   # ca_cert: '<path_to_ca_cert>'
-  authentication:
-    method: 'x509'
-    client_cert: '<path_to_cert>'
-    client_key: '<path_to_key>'
-mappings: {}
+  # authentication:
+    # method: 'x509'
+    # client_cert: '<path_to_cert>'
+    # client_key: '<path_to_key>'
+# mappings: {}
   # 'ready replicas of my-app':
   #   query: 'kube_deployment_status_replicas_ready{deployment="my-app"}'
   #   host: 'Kubernetes production cluster'

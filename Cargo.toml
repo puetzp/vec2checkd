@@ -1,6 +1,6 @@
 [package]
 name = "vec2checkd"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Peter Sebastian Puetz <peter.puetz@itenos.de>"]
 edition = "2021"
 keywords = [ "icinga", "prometheus", "api", "promql", "nagios" ]
@@ -28,11 +28,10 @@ extended-description = "vec2checkd executes PromQL queries against the Prometheu
 license-file = [ "LICENSE", "0" ]
 section = "utility"
 priority = "optional"
-conf-files = ["/etc/vec2checkd/config.yaml"]
 maintainer-scripts = "debian/"
 systemd-units = { unit-name = "vec2checkd" }
 assets = [
        ["target/release/vec2checkd", "/usr/bin/vec2checkd", "755"],
-       ["defaults/config.yaml", "/etc/vec2checkd/config.yaml", "644"],
+       ["defaults/template.yaml", "/etc/vec2checkd/template.yaml", "644"],
 ]
 depends = "$auto"
