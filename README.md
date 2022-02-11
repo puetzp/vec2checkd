@@ -24,7 +24,7 @@ and then building the package:
 
 `cargo deb`
 
-The .deb package also provides a systemd unit file and a default configuration file in `/etc/vec2checkd/config.yaml`.
+The .deb package also provides a systemd unit template file. See the next section on how to configure multiple instances of vec2checkd.
 
 ### Binary only
 
