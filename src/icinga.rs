@@ -218,99 +218,128 @@ pub(crate) fn build_payload(
     })
 }
 
-/// Replace placeholders in the "plugin output" (in nagios-speak) by interpreting
-/// and expanding the string with parameters from the check result.
-/// Note that this behaves almost exactly like `config::preformat_plugin_output`.
-pub(crate) fn format_plugin_output(
-    mapping: &Mapping,
-    value: f64,
-    metric: HashMap<String, String>,
-    exit_status: u8,
-) -> Result<String, anyhow::Error> {
-    let mut plugin_output = mapping.plugin_output.as_ref().unwrap().clone();
+pub mod plugin_output {
+    use super::*;
 
-    // Note that if you want to insert a label value from the
-    // PromQL query result, retrieving that value may fail at
-    // runtime because the closure below actually allows for
-    // a greater range of valid characters than is available
-    // for label values, which is [a-zA-Z_][a-zA-Z0-9_]* as per
-    // the Prometheus documentation.
-    while let Some((position, var_ident)) = plugin_output.char_indices().find(|(_, c)| *c == '$') {
-        let mut identifier = plugin_output[position + 1..]
-            .chars()
-            .take_while(|c| c.is_alphabetic() || *c == '_' || *c == '.')
-            .collect::<String>();
+    /// Replace placeholders in the "plugin output" (in nagios-speak) by interpreting
+    /// and expanding the string with parameters from the check result.
+    /// Note that this behaves almost exactly like `config::preformat_plugin_output`.
+    pub(crate) fn format_plugin_output(
+        mapping: &Mapping,
+        value: f64,
+        metric: HashMap<String, String>,
+        exit_status: u8,
+    ) -> Result<String, anyhow::Error> {
+        let mut plugin_output = mapping.plugin_output.as_ref().unwrap().clone();
 
-        identifier.insert(0, var_ident);
+        // Note that if you want to insert a label value from the
+        // PromQL query result, retrieving that value may fail at
+        // runtime because the closure below actually allows for
+        // a greater range of valid characters than is available
+        // for label values, which is [a-zA-Z_][a-zA-Z0-9_]* as per
+        // the Prometheus documentation.
+        while let Some((position, var_ident)) =
+            plugin_output.char_indices().find(|(_, c)| *c == '$')
+        {
+            let mut identifier = plugin_output[position + 1..]
+                .chars()
+                .take_while(|c| c.is_alphabetic() || *c == '_' || *c == '.')
+                .collect::<String>();
 
-        let replacement = match identifier.as_str() {
-            "$value" => util::truncate_to_string(value),
-            "$state" => match &mapping.service {
-                Some(_) => match exit_status {
-                    3 => "UNKNOWN".to_string(),
-                    2 => "CRITICAL".to_string(),
-                    1 => "WARNING".to_string(),
-                    0 => "OK".to_string(),
-                    _ => unreachable!(),
+            identifier.insert(0, var_ident);
+
+            let replacement = match identifier.as_str() {
+                "$value" => util::truncate_to_string(value),
+                "$state" => match &mapping.service {
+                    Some(_) => match exit_status {
+                        3 => "UNKNOWN".to_string(),
+                        2 => "CRITICAL".to_string(),
+                        1 => "WARNING".to_string(),
+                        0 => "OK".to_string(),
+                        _ => unreachable!(),
+                    },
+                    None => match exit_status {
+                        2 | 3 => "DOWN".to_string(),
+                        0 | 1 => "UP".to_string(),
+                        _ => unreachable!(),
+                    },
                 },
-                None => match exit_status {
-                    2 | 3 => "DOWN".to_string(),
-                    0 | 1 => "UP".to_string(),
-                    _ => unreachable!(),
-                },
-            },
-            "$exit_status" => exit_status.to_string(),
-            "$metric" => metric
-                .get("__name__")
-                .ok_or(MissingLabelError {
-                    identifier: identifier.clone(),
-                    label: "__name__".to_string(),
-                })?
-                .clone(),
-            _ if identifier.starts_with("$labels.") => {
-                let metric_key = identifier.as_str().split_once('.').unwrap().1;
-                metric
-                    .get(metric_key)
+                "$exit_status" => exit_status.to_string(),
+                "$metric" => metric
+                    .get("__name__")
                     .ok_or(MissingLabelError {
                         identifier: identifier.clone(),
-                        label: metric_key.to_string(),
+                        label: "__name__".to_string(),
                     })?
-                    .clone()
-            }
-            _ => {
-                bail!("the plugin output placeholder '{}' is invalid", identifier)
-            }
-        };
+                    .clone(),
+                _ if identifier.starts_with("$labels.") => {
+                    let metric_key = identifier.as_str().split_once('.').unwrap().1;
+                    metric
+                        .get(metric_key)
+                        .ok_or(MissingLabelError {
+                            identifier: identifier.clone(),
+                            label: metric_key.to_string(),
+                        })?
+                        .clone()
+                }
+                _ => {
+                    bail!("the plugin output placeholder '{}' is invalid", identifier)
+                }
+            };
 
-        let range = position..position + identifier.len();
+            let range = position..position + identifier.len();
 
-        plugin_output.replace_range(range, &replacement);
+            plugin_output.replace_range(range, &replacement);
+        }
+
+        Ok(plugin_output)
     }
 
-    Ok(plugin_output)
-}
+    /// Return a default plugin output corresponding to an UNKNOWN state
+    /// due to an empty query result.
+    #[inline]
+    pub(crate) fn format_default_without_result() -> String {
+        format!("[UNKNOWN] PromQL query result set is empty")
+    }
 
-/// Return the default plugin output.
-#[inline]
-pub(crate) fn default_plugin_output(mapping: &Mapping, value: f64, exit_status: u8) -> String {
-    let value = util::truncate_to_string(value);
-    if mapping.service.is_some() {
+    /// Return the default plugin output when the query result set contains
+    /// single item.
+    /// The plugin output varies a little depending on if a Icinga service name
+    /// is configured or the check result targets a host object.
+    #[inline]
+    pub(crate) fn format_default_single_item(
+        mapping: &Mapping,
+        value: f64,
+        exit_status: u8,
+    ) -> String {
+        let value = util::truncate_to_string(value);
         match exit_status {
-            3 => format!("[UNKNOWN] '{}': PromQL query result is empty", mapping.name),
-            2 => format!("[CRITICAL] '{}' is {}", mapping.name, value),
-            1 => format!("[WARNING] '{}' is {}", mapping.name, value),
-            0 => format!("[OK] '{}' is {}", mapping.name, value),
-            _ => unreachable!(),
-        }
-    } else {
-        // This mapping from service states to host states is consistent
-        // with Icinga2's own behaviour; ref:
-        // https://icinga.com/docs/icinga-2/latest/doc/03-monitoring-basics/#check-result-state-mapping
-        // Also note: exit_status cannot be zero as per determine_exit_status.
-        match exit_status {
-            3 => format!("[DOWN] '{}': PromQL query result is empty", mapping.name),
-            2 => format!("[DOWN] '{}' is {}", mapping.name, value),
-            0 | 1 => format!("[UP] '{}' is {}", mapping.name, value),
+            2 => {
+                // Can be unwrapped safely as exit status 2 is only possible when a
+                // critical threshold was given.
+                let crit_range = mapping.thresholds.critical.unwrap().to_string();
+                let state = mapping.service.map_or("DOWN", |_| "CRITICAL");
+                format!(
+                    "[{}] PromQL query returned one result within the critical range ({} in {})",
+                    state, value, crit_range
+                )
+            }
+            1 => {
+                // Can be unwrapped safely as exit status 1 is only possible when a
+                // warning threshold was given.
+                let warn_range = mapping.thresholds.warning.unwrap().to_string();
+                let state = mapping.service.map_or("UP", |_| "WARNING");
+                format!(
+                    "[{}] PromQL query returned one result within the warning range ({} in {})",
+                    state, value, warn_range
+                )
+            }
+            0 => {
+                let state = mapping.service.map_or("UP", |_| "OK");
+                format!("[{}] PromQL query returned one result ({})", state, value)
+            }
+            // Exit status "3"/"UNKNOWN" can be ignored safely as it has been handled
+            // prior to the call to this function.
             _ => unreachable!(),
         }
     }
@@ -353,11 +382,139 @@ pub(crate) fn format_performance_data(mapping: &Mapping, value: f64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::icinga::plugin_output::*;
+    use crate::icinga::*;
     use crate::types::{Mapping, ThresholdPair};
     use nagios_range::NagiosRange;
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn test_format_default_single_item_hard_host_alert() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default(),
+        };
+        let result =
+            "[DOWN] PromQL query returned one result within the critical range (15 in @10:20)"
+                .to_string();
+        assert_eq!(format_default_single_item(&mapping, 15.0, 2), result);
+    }
+
+    #[test]
+    fn test_format_default_single_item_soft_host_alert() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: Some(NagiosRange::from("@10").unwrap()),
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default(),
+        };
+        let result = "[UP] PromQL query returned one result within the warning range (5 in @10:20)"
+            .to_string();
+        assert_eq!(format_default_single_item(&mapping, 5.0, 1), result);
+    }
+
+    #[test]
+    fn test_format_default_single_item_no_host_alert() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: Some(NagiosRange::from("@5:10").unwrap()),
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default(),
+        };
+        let result = "[UP] PromQL query returned one result (2)".to_string();
+        assert_eq!(format_default_single_item(&mapping, 2.0, 0), result);
+    }
+
+    #[test]
+    fn test_format_default_single_item_crit_service_alert() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: Some("bar".to_string()),
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default(),
+        };
+        let result =
+            "[CRITICAL] PromQL query returned one result within the critical range (15 in @10:20)"
+                .to_string();
+        assert_eq!(format_default_single_item(&mapping, 15.0, 2), result);
+    }
+
+    #[test]
+    fn test_format_default_single_item_warn_service_alert() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: Some(NagiosRange::from("@10").unwrap()),
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: Some("bar".to_string()),
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default(),
+        };
+        let result =
+            "[WARNING] PromQL query returned one result within the warning range (5 in @10:20)"
+                .to_string();
+        assert_eq!(format_default_single_item(&mapping, 5.0, 1), result);
+    }
+
+    #[test]
+    fn test_format_default_single_item_no_service_alert() {
+        let mapping = Mapping {
+            name: "foobar".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: Some(NagiosRange::from("@5:10").unwrap()),
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: Some("bar".to_string()),
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default(),
+        };
+        let result = "[OK] PromQL query returned one result (2)".to_string();
+        assert_eq!(format_default_single_item(&mapping, 2.0, 0), result);
+    }
 
     #[test]
     fn test_format_plugin_output_with_threshold_and_value_and_state() {

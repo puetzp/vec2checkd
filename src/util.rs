@@ -72,39 +72,33 @@ pub(crate) async fn execute_task(
                 "failed to parse PromQL query result as instant vector"
             ))?;
 
-        // Get the first item of the PromQL query result set and apply all needed operations.
-        // Ignore any customizations etc. when the result set is empty and default to
-        // UNKNOWN/DOWN state with a static output.
-        let (plugin_output, exit_status, performance_data) = match instant_vector.get(0) {
-            Some(first_vec) => {
-                debug!("'{}': Process only the first item from the PromQL vector result set", mapping.name);
-                let value = first_vec.sample().value();
-                let metric = first_vec.metric().clone();
+        // Return a default plugin output and state UNKNOWN (3) when the query result is empty.
+        // Also do not return performance data in this case.
+        // Else process the non-empty query result.
+        let (plugin_output, exit_status, performance_data) = if instant_vector.is_empty() {
+            warn!("'{}': PromQL query result is empty, default to 'UNKNOWN|DOWN' status (exit code '3')", mapping.name);
+            let plugin_output = icinga::plugin_output::format_default_without_result();
+            let exit_status = 3;
+            let performance_data = None;
+            (plugin_output, exit_status, performance_data)
+        } else {
+            if instant_vector.len() == 1 {
+                debug!("'{}': Process the one and only item in the PromQL query result set", mapping.name);
+                let item = instant_vector.first().unwrap();
+                let value = item.sample().value();
+                let metric = item.metric().clone();
                 let exit_status = icinga::determine_exit_status(&mapping.thresholds, value);
 
                 let plugin_output = if mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
-                    icinga::default_plugin_output(&mapping, value, exit_status)
+                    icinga::plugin_output::format_default_single_item(&mapping, value, exit_status)
                 } else {
                     debug!("'{}': Process dynamic parts of custom plugin output template: {}", mapping.name, mapping.plugin_output.as_ref().unwrap());
-                    let out = icinga::format_plugin_output(&mapping, value, metric, exit_status)?;
+                    let out = icinga::plugin_output::format_plugin_output(&mapping, value, metric, exit_status)?;
                     debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
                     out
                 };
 
-                let performance_data = if mapping.performance_data.enabled {
-                    Some(icinga::format_performance_data(&mapping, value))
-                } else {
-                    None
-                };
-
-                (plugin_output, exit_status, performance_data)
-            },
-            None => {
-                warn!("'{}': PromQL query result is empty, default to 'UNKNOWN|DOWN' status (exit code '3')", mapping.name);
-                let value = 0.0;
-                let exit_status = 3;
-                let plugin_output = icinga::default_plugin_output(&mapping, value, exit_status);
                 let performance_data = if mapping.performance_data.enabled {
                     Some(icinga::format_performance_data(&mapping, value))
                 } else {
