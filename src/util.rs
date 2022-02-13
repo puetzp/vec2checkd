@@ -82,12 +82,13 @@ pub(crate) async fn execute_task(
             let performance_data = None;
             (plugin_output, exit_status, performance_data)
         } else {
-            if instant_vector.len() == 1 {
+            let item_count = instant_vector.len();
+            if item_count == 1 {
                 debug!("'{}': Process the one and only item in the PromQL query result set", mapping.name);
                 let item = instant_vector.first().unwrap();
                 let value = item.sample().value();
                 let metric = item.metric().clone();
-                let exit_status = icinga::determine_exit_status(&mapping.thresholds, value);
+                let exit_status = icinga::determine_exit_status_from_value(&mapping.thresholds, value);
 
                 let plugin_output = if mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
@@ -106,6 +107,20 @@ pub(crate) async fn execute_task(
                 };
 
                 (plugin_output, exit_status, performance_data)
+            } else {
+                debug!("'{}': Process the PromQL query result set (total of {} items)", mapping.name, item_count);
+                let values: Vec<f64> = instant_vector.iter().map(|item| item.sample().value()).collect();
+                let exit_status = icinga::determine_exit_status_from_values(&mapping.thresholds, &values);
+
+                let plugin_output = if mapping.plugin_output.is_none() {
+                    debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
+                    icinga::plugin_output::format_default_multiple_items(&mapping, values, exit_status)
+                } else {
+                    debug!("'{}': Process dynamic parts of custom plugin output template: {}", mapping.name, mapping.plugin_output.as_ref().unwrap());
+                    let out = icinga::plugin_output::format_plugin_output(&mapping, value, metric, exit_status)?;
+                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
+                    out
+                };
             }
         };
 
