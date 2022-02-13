@@ -95,9 +95,10 @@ pub(crate) async fn execute_task(
                     icinga::plugin_output::format_default_single_item(&mapping, value, exit_status)
                 } else {
                     debug!("'{}': Process dynamic parts of custom plugin output template: {}", mapping.name, mapping.plugin_output.as_ref().unwrap());
-                    let out = icinga::plugin_output::format_plugin_output(&mapping, value, metric, exit_status)?;
-                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
-                    out
+//                    let out = icinga::plugin_output::format_plugin_output(&mapping, value, metric, exit_status)?;
+//                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
+                    //                    out
+                    format!("")
                 };
 
                 let performance_data = if mapping.performance_data.enabled {
@@ -114,13 +115,15 @@ pub(crate) async fn execute_task(
 
                 let plugin_output = if mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
-                    icinga::plugin_output::format_default_multiple_items(&mapping, values, exit_status)
+                    icinga::plugin_output::format_default_multiple_items(&mapping, &values, exit_status)
                 } else {
                     debug!("'{}': Process dynamic parts of custom plugin output template: {}", mapping.name, mapping.plugin_output.as_ref().unwrap());
-                    let out = icinga::plugin_output::format_plugin_output(&mapping, value, metric, exit_status)?;
-                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
-                    out
+//                    let out = icinga::plugin_output::format_plugin_output(&mapping, value, metric, exit_status)?;
+//                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
+//                    out
+                    format!("")
                 };
+                (plugin_output, exit_status, None)
             }
         };
 

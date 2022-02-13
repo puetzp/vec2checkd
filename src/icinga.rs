@@ -170,13 +170,13 @@ pub(crate) fn determine_exit_status_from_value(thresholds: &ThresholdPair, value
 /// range while the critical range takes precedence over the warning range.
 pub(crate) fn determine_exit_status_from_values(thresholds: &ThresholdPair, values: &[f64]) -> u8 {
     if let Some(critical) = &thresholds.critical {
-        if values.iter().any(|v| critical.check(v)) {
+        if values.iter().any(|v| critical.check(*v)) {
             return 2;
         }
     }
 
     if let Some(warning) = &thresholds.warning {
-        if values.iter().any(|v| warning.check(v)) {
+        if values.iter().any(|v| warning.check(*v)) {
             return 1;
         }
     }
@@ -335,8 +335,8 @@ pub mod plugin_output {
             2 => {
                 // Can be unwrapped safely as exit status 2 is only possible when a
                 // critical threshold was given.
-                let crit_range = mapping.thresholds.critical.unwrap().to_string();
-                let state = mapping.service.map_or("DOWN", |_| "CRITICAL");
+                let crit_range = mapping.thresholds.critical.as_ref().unwrap().to_string();
+                let state = mapping.service.as_ref().map_or("DOWN", |_| "CRITICAL");
                 format!(
                     "[{}] PromQL query returned one result within the critical range ({} in {})",
                     state, value, crit_range
@@ -345,15 +345,15 @@ pub mod plugin_output {
             1 => {
                 // Can be unwrapped safely as exit status 1 is only possible when a
                 // warning threshold was given.
-                let warn_range = mapping.thresholds.warning.unwrap().to_string();
-                let state = mapping.service.map_or("UP", |_| "WARNING");
+                let warn_range = mapping.thresholds.warning.as_ref().unwrap().to_string();
+                let state = mapping.service.as_ref().map_or("UP", |_| "WARNING");
                 format!(
                     "[{}] PromQL query returned one result within the warning range ({} in {})",
                     state, value, warn_range
                 )
             }
             0 => {
-                let state = mapping.service.map_or("UP", |_| "OK");
+                let state = mapping.service.as_ref().map_or("UP", |_| "OK");
                 format!("[{}] PromQL query returned one result ({})", state, value)
             }
             // Exit status "3"/"UNKNOWN" can be ignored safely as it has been handled
@@ -373,34 +373,34 @@ pub mod plugin_output {
         exit_status: u8,
     ) -> String {
         //        let value = util::truncate_to_string(value);
-        let min_value = values.iter().reduce(f64::min).unwrap();
-        let max_value = values.iter().reduce(f64::max).unwrap();
+        let min_value = values.iter().map(|v| *v).reduce(f64::min).unwrap();
+        let max_value = values.iter().map(|v| *v).reduce(f64::max).unwrap();
         let value_range = min_value..=max_value;
         match exit_status {
             2 => {
                 // Can be unwrapped safely as exit status 2 is only possible when a
                 // critical threshold was given.
-                let crit_range = mapping.thresholds.critical.unwrap().to_string();
-                let state = mapping.service.map_or("DOWN", |_| "CRITICAL");
+                let crit_range = mapping.thresholds.critical.as_ref().unwrap().to_string();
+                let state = mapping.service.as_ref().map_or("DOWN", |_| "CRITICAL");
                 format!(
-                    "[{}] PromQL query returned multiple results within the critical range (values {} overlap with {})",
+                    "[{}] PromQL query returned multiple results within the critical range (values {:?} overlap with {})",
                     state, value_range, crit_range
                 )
             }
             1 => {
                 // Can be unwrapped safely as exit status 1 is only possible when a
                 // warning threshold was given.
-                let warn_range = mapping.thresholds.warning.unwrap().to_string();
-                let state = mapping.service.map_or("UP", |_| "WARNING");
+                let warn_range = mapping.thresholds.warning.as_ref().unwrap().to_string();
+                let state = mapping.service.as_ref().map_or("UP", |_| "WARNING");
                 format!(
-                    "[{}] PromQL query returned multiple results within the warning range (values {} overlap with {})",
+                    "[{}] PromQL query returned multiple results within the warning range (values {:?} overlap with {})",
                     state, value_range, warn_range
                 )
             }
             0 => {
-                let state = mapping.service.map_or("UP", |_| "OK");
+                let state = mapping.service.as_ref().map_or("UP", |_| "OK");
                 format!(
-                    "[{}] PromQL query returned multiple results in the range {}",
+                    "[{}] PromQL query returned multiple results in the range {:?}",
                     state, value_range
                 )
             }
