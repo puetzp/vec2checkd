@@ -493,7 +493,7 @@ mod tests {
             plugin_output: None,
             performance_data: PerformanceData::default(),
         };
-        let result = "[UP] PromQL query returned one result within the warning range (5 in @10:20)"
+        let result = "[UP] PromQL query returned one result within the warning range (5 in @0:10)"
             .to_string();
         assert_eq!(format_default_single_item(&mapping, 5.0, 1), result);
     }
@@ -557,7 +557,7 @@ mod tests {
             performance_data: PerformanceData::default(),
         };
         let result =
-            "[WARNING] PromQL query returned one result within the warning range (5 in @10:20)"
+            "[WARNING] PromQL query returned one result within the warning range (5 in @0:10)"
                 .to_string();
         assert_eq!(format_default_single_item(&mapping, 5.0, 1), result);
     }
