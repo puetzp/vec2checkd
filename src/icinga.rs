@@ -7,7 +7,7 @@ use log::debug;
 use md5::{Digest, Md5};
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
 
@@ -402,6 +402,11 @@ pub mod plugin_output {
 /// the backend that processes these data irregardless of the order in which
 /// time series are returned by the API or the total amount of returned
 /// time series.
+/// Unique performance data labels can also be computed from a handlebars
+/// template. That is useful when you are absolutely sure that the set of
+/// time series returned by the API contains a known-to-be-unique label
+/// value. Using this specific label value makes the performance data
+/// more readable and less "generic".
 /// Attach warning and critical thresholds to the performance data string when
 /// they are configured in the mapping.
 /// See https://nagios-plugins.org/doc/guidelines.html#AEN200 for the
@@ -413,6 +418,7 @@ pub(crate) fn format_performance_data(
     values: &[f64],
 ) -> Result<Vec<String>, anyhow::Error> {
     let mut result = vec![];
+    let mut unique_labels = HashSet::new();
 
     if let Some(ref template) = mapping.performance_data.label {
         let handlebars = Handlebars::new();
@@ -420,29 +426,12 @@ pub(crate) fn format_performance_data(
         for item in values.iter().enumerate() {
             let context = RenderContext::from(mapping, metric[item.0], item.1);
             let label = handlebars.render_template(template, &context)?;
-            let perf_data = format!(
-                "'{}'={}{};{};{};;",
-                label,
-                item.1,
-                mapping
-                    .performance_data
-                    .uom
-                    .as_ref()
-                    .unwrap_or(&String::new()),
-                mapping
-                    .thresholds
-                    .warning
-                    .as_ref()
-                    .map(|w| w.to_string())
-                    .unwrap_or_default(),
-                mapping
-                    .thresholds
-                    .critical
-                    .as_ref()
-                    .map(|c| c.to_string())
-                    .unwrap_or_default(),
-            );
-            result.push(perf_data);
+
+            if unique_labels.insert(label.clone()) {
+                insert_performance_data(&mut result, &mapping, &label, &item.1);
+            } else {
+                bail!("the performance data label '{}' is already present, labels must be unique within a set of performance data", label);
+            }
         }
     } else {
         let metric: Vec<String> = metric
@@ -460,37 +449,44 @@ pub(crate) fn format_performance_data(
             })
             .collect();
 
-        let data: Vec<(&String, &f64)> = metric.iter().zip(values.iter()).collect();
+        for item in values.iter().enumerate() {
+            let label = format!("{}/{}", &mapping.name, metric[item.0]);
 
-        for item in data {
-            let perf_data = format!(
-                "'{}/{}'={}{};{};{};;",
-                &mapping.name,
-                item.0,
-                item.1,
-                mapping
-                    .performance_data
-                    .uom
-                    .as_ref()
-                    .unwrap_or(&String::new()),
-                mapping
-                    .thresholds
-                    .warning
-                    .as_ref()
-                    .map(|w| w.to_string())
-                    .unwrap_or_default(),
-                mapping
-                    .thresholds
-                    .critical
-                    .as_ref()
-                    .map(|c| c.to_string())
-                    .unwrap_or_default(),
-            );
-            result.push(perf_data);
+            if unique_labels.insert(label.clone()) {
+                insert_performance_data(&mut result, &mapping, &label, &item.1);
+            } else {
+                bail!("the performance data label '{}' is already present, labels must be unique within a set of performance data", label);
+            }
         }
     }
 
     Ok(result)
+}
+
+fn insert_performance_data(result: &mut Vec<String>, mapping: &Mapping, label: &str, value: &f64) {
+    let perf_data = format!(
+        "'{}'={}{};{};{};;",
+        label,
+        value,
+        mapping
+            .performance_data
+            .uom
+            .as_ref()
+            .unwrap_or(&String::new()),
+        mapping
+            .thresholds
+            .warning
+            .as_ref()
+            .map(|w| w.to_string())
+            .unwrap_or_default(),
+        mapping
+            .thresholds
+            .critical
+            .as_ref()
+            .map(|c| c.to_string())
+            .unwrap_or_default(),
+    );
+    result.push(perf_data);
 }
 
 #[cfg(test)]
@@ -740,7 +736,7 @@ mod tests {
     }
 
     #[test]
-    fn test_format_performance_data_with_custom_label() {
+    fn test_format_performance_data_with_duplicate_label_name() {
         let mapping = Mapping {
             name: "random name".to_string(),
             query: "up{random_label=\"random_value\"}".to_string(),
@@ -770,15 +766,7 @@ mod tests {
         let metric = vec![&metric1, &metric2];
         let values = vec![5.0, 15.0];
 
-        let result = vec![
-            format!("'random name'=5;;;;"),
-            format!("'random name'=15;;;;"),
-        ];
-
-        assert_eq!(
-            format_performance_data(&mapping, &metric, &values).unwrap(),
-            result
-        );
+        assert!(format_performance_data(&mapping, &metric, &values).is_err(),);
     }
 
     #[test]
@@ -818,5 +806,39 @@ mod tests {
             format_performance_data(&mapping, &metric, &values).unwrap(),
             result
         );
+    }
+
+    #[test]
+    fn test_format_performance_data_from_result_label_set_with_duplicates() {
+        let mapping = Mapping {
+            name: "random name".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: None,
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData {
+                enabled: true,
+                label: Some("{{ metric.some_label }}".to_string()),
+                uom: None,
+            },
+        };
+        let mut metric1 = HashMap::new();
+        metric1.insert("some_label".to_string(), "some_value".to_string());
+        metric1.insert("another_label".to_string(), "another_value".to_string());
+
+        let mut metric2 = HashMap::new();
+        metric2.insert("some_label".to_string(), "some_value".to_string());
+        metric2.insert("bar_label".to_string(), "bar_value".to_string());
+
+        let metric = vec![&metric1, &metric2];
+        let values = vec![5.0, 15.0];
+
+        assert!(format_performance_data(&mapping, &metric, &values).is_err(),);
     }
 }
