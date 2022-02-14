@@ -102,7 +102,7 @@ pub(crate) async fn execute_task(
                 };
 
                 let performance_data = if mapping.performance_data.enabled {
-                    Some(icinga::format_performance_data(&mapping, value))
+                    Some(icinga::performance_data::format_single_item(&mapping, value))
                 } else {
                     None
                 };
