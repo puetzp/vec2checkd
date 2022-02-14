@@ -3,9 +3,10 @@ use crate::types::*;
 use crate::util;
 use anyhow::bail;
 use log::debug;
+use md5::{Digest, Md5};
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::Read;
 
@@ -140,7 +141,7 @@ pub(crate) struct IcingaPayload {
     exit_status: u8,
     plugin_output: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    performance_data: Option<String>,
+    performance_data: Option<Vec<String>>,
     filter: String,
     filter_vars: serde_json::Value,
     ttl: u64,
@@ -172,7 +173,7 @@ pub(crate) fn build_payload(
     mapping: &Mapping,
     exit_status: u8,
     plugin_output: String,
-    performance_data: Option<String>,
+    performance_data: Option<Vec<String>>,
     execution_start: u64,
     execution_end: u64,
 ) -> Result<IcingaPayload, anyhow::Error> {
@@ -393,39 +394,70 @@ pub mod plugin_output {
     }
 }
 
-/// Return performance data string corresponding to this mapping and value.
+/// Process and return an array of performance data strings.
+/// By default performance data labels are built from the mapping name and the
+/// MD5-hash of the label set of each time series in the query result set.
+/// This guarantees that performance data are still uniquely identifiable for
+/// the backend that processes these data irregardless of the order in which
+/// time series are returned by the API or the total amount of returned
+/// time series.
 /// Attach warning and critical thresholds to the performance data string when
 /// they are configured in the mapping.
 /// See https://nagios-plugins.org/doc/guidelines.html#AEN200 for the
 /// expected format.
 #[inline]
-pub(crate) fn format_performance_data(mapping: &Mapping, value: f64) -> String {
-    format!(
-        "'{}'={}{};{};{};;",
-        mapping
-            .performance_data
-            .label
-            .as_ref()
-            .unwrap_or(&mapping.name),
-        value,
-        mapping
-            .performance_data
-            .uom
-            .as_ref()
-            .unwrap_or(&String::new()),
-        mapping
-            .thresholds
-            .warning
-            .as_ref()
-            .map(|w| w.to_string())
-            .unwrap_or_default(),
-        mapping
-            .thresholds
-            .critical
-            .as_ref()
-            .map(|c| c.to_string())
-            .unwrap_or_default(),
-    )
+pub(crate) fn format_performance_data(
+    mapping: &Mapping,
+    metric: &[&HashMap<String, String>],
+    values: &[f64],
+) -> Vec<String> {
+    let metric: Vec<String> = metric
+        .iter()
+        .map(|unordered_ts| {
+            let ordered_ts = BTreeMap::from_iter(unordered_ts.iter());
+            let metric_str = ordered_ts.iter().fold(String::new(), |mut acc, metric| {
+                acc.push_str(metric.0);
+                acc.push_str(metric.1);
+                acc
+            });
+            let mut digest = format!("{:x}", Md5::digest(&metric_str));
+            digest.truncate(6);
+            digest
+        })
+        .collect();
+
+    let data: Vec<(&String, &f64)> = metric.iter().zip(values.iter()).collect();
+
+    let mut result = vec![];
+
+    for item in data {
+        let perf_data = format!(
+            "'{}/{}'={}{};{};{};;",
+            &mapping.name,
+            item.0,
+            item.1,
+            mapping
+                .performance_data
+                .uom
+                .as_ref()
+                .unwrap_or(&String::new()),
+            mapping
+                .thresholds
+                .warning
+                .as_ref()
+                .map(|w| w.to_string())
+                .unwrap_or_default(),
+            mapping
+                .thresholds
+                .critical
+                .as_ref()
+                .map(|c| c.to_string())
+                .unwrap_or_default(),
+        );
+        result.push(perf_data);
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -643,58 +675,31 @@ mod tests {
             plugin_output: None,
             performance_data: PerformanceData::default(),
         };
-        let value = 5.0;
-        let result = format!("'foobar'=5;;;;");
-        assert_eq!(format_performance_data(&mapping, value), result);
+        let mut metric1 = HashMap::new();
+        // Note that the order will be reversed here, when this HashMap is
+        // converted to a BTreeMap.
+        metric1.insert("some_label".to_string(), "some_value".to_string());
+        metric1.insert("another_label".to_string(), "another_value".to_string());
 
-        let value = 5.5;
-        let result = format!("'foobar'=5.5;;;;");
-        assert_eq!(format_performance_data(&mapping, value), result);
-    }
+        let mut metric2 = HashMap::new();
+        // Note that the order will be reversed here, when this HashMap is
+        // converted to a BTreeMap.
+        metric2.insert("foo_label".to_string(), "foo_value".to_string());
+        metric2.insert("bar_label".to_string(), "bar_value".to_string());
 
-    #[test]
-    fn test_format_performance_data_with_thresholds() {
-        let mapping = Mapping {
-            name: "foobar".to_string(),
-            query: "up{random_label=\"random_value\"}".to_string(),
-            thresholds: ThresholdPair {
-                warning: Some(NagiosRange::from("@10").unwrap()),
-                critical: Some(NagiosRange::from("@100").unwrap()),
-            },
-            host: "foo".to_string(),
-            service: None,
-            interval: Duration::from_secs(60),
-            last_apply: Instant::now(),
-            plugin_output: None,
-            performance_data: PerformanceData::default(),
-        };
-        let value = 5.5;
-        let result = format!("'foobar'=5.5;@0:10;@0:100;;");
-        assert_eq!(format_performance_data(&mapping, value), result);
-    }
+        let mut metric3 = HashMap::new();
+        metric3.insert("test_label".to_string(), "test_value".to_string());
+        metric3.insert("z_label".to_string(), "z_value".to_string());
 
-    #[test]
-    fn test_format_performance_data_with_thresholds_and_uom() {
-        let mapping = Mapping {
-            name: "foobar".to_string(),
-            query: "up{random_label=\"random_value\"}".to_string(),
-            thresholds: ThresholdPair {
-                warning: Some(NagiosRange::from("@10").unwrap()),
-                critical: Some(NagiosRange::from("@100").unwrap()),
-            },
-            host: "foo".to_string(),
-            service: None,
-            interval: Duration::from_secs(60),
-            last_apply: Instant::now(),
-            plugin_output: None,
-            performance_data: PerformanceData {
-                enabled: true,
-                label: Some("alternative".to_string()),
-                uom: Some("c".to_string()),
-            },
-        };
-        let value = 5.5;
-        let result = format!("'alternative'=5.5c;@0:10;@0:100;;");
-        assert_eq!(format_performance_data(&mapping, value), result);
+        let metric = vec![&metric1, &metric2, &metric3];
+        let values = vec![5.0, 15.0, 20.5];
+
+        let result = vec![
+            format!("'foobar/eaa8c4'=5;;;;"),
+            format!("'foobar/6c72e2'=15;;;;"),
+            format!("'foobar/c9308d'=20.5;;;;"),
+        ];
+
+        assert_eq!(format_performance_data(&mapping, &metric, &values), result);
     }
 }

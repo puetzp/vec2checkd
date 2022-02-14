@@ -3,6 +3,7 @@ use crate::types::Mapping;
 use anyhow::anyhow;
 use anyhow::Context;
 use log::{debug, warn};
+use std::collections::HashMap;
 use std::num::FpCategory;
 use std::time::{Duration, SystemTime};
 
@@ -83,14 +84,24 @@ pub(crate) async fn execute_task(
             (plugin_output, exit_status, performance_data)
         } else {
             let item_count = instant_vector.len();
-            if item_count == 1 {
+
+            let metric: Vec<&HashMap<String, String>> = instant_vector.iter().map(|item| item.metric()).collect();
+            let values: Vec<f64> = instant_vector.iter().map(|item| item.sample().value()).collect();
+            let exit_status = icinga::determine_exit_status(&mapping.thresholds, &values);
+
+            let performance_data = if mapping.performance_data.enabled {
+                Some(icinga::format_performance_data(&mapping, &metric, &values))
+            } else {
+                None
+            };
+
+            let plugin_output = if item_count == 1 {
                 debug!("'{}': Process the one and only item in the PromQL query result set", mapping.name);
                 let item = instant_vector.first().unwrap();
                 let value = item.sample().value();
                 let metric = item.metric().clone();
-                let exit_status = icinga::determine_exit_status(&mapping.thresholds, &[value]);
 
-                let plugin_output = if mapping.plugin_output.is_none() {
+                if mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
                     icinga::plugin_output::format_default_single_item(&mapping, value, exit_status)
                 } else {
@@ -99,21 +110,11 @@ pub(crate) async fn execute_task(
 //                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
                     //                    out
                     format!("")
-                };
-
-                let performance_data = if mapping.performance_data.enabled {
-                    Some(icinga::format_performance_data(&mapping, value))
-                } else {
-                    None
-                };
-
-                (plugin_output, exit_status, performance_data)
+                }
             } else {
                 debug!("'{}': Process the PromQL query result set (total of {} items)", mapping.name, item_count);
-                let values: Vec<f64> = instant_vector.iter().map(|item| item.sample().value()).collect();
-                let exit_status = icinga::determine_exit_status(&mapping.thresholds, &values);
 
-                let plugin_output = if mapping.plugin_output.is_none() {
+                if mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
                     icinga::plugin_output::format_default_multiple_items(&mapping, &values, exit_status)
                 } else {
@@ -122,9 +123,9 @@ pub(crate) async fn execute_task(
 //                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
 //                    out
                     format!("")
-                };
-                (plugin_output, exit_status, None)
-            }
+                }
+            };
+            (plugin_output, exit_status, performance_data)
         };
 
         let exec_end = get_unix_timestamp().with_context(|| {
