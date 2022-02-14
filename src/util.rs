@@ -90,7 +90,7 @@ pub(crate) async fn execute_task(
             let exit_status = icinga::determine_exit_status(&mapping.thresholds, &values);
 
             let performance_data = if mapping.performance_data.enabled {
-                Some(icinga::format_performance_data(&mapping, &metric, &values))
+                Some(icinga::format_performance_data(&mapping, &metric, &values)?)
             } else {
                 None
             };
@@ -99,7 +99,6 @@ pub(crate) async fn execute_task(
                 debug!("'{}': Process the one and only item in the PromQL query result set", mapping.name);
                 let item = instant_vector.first().unwrap();
                 let value = item.sample().value();
-                let metric = item.metric().clone();
 
                 if mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);

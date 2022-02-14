@@ -2,6 +2,7 @@ use crate::error::*;
 use crate::types::*;
 use crate::util;
 use anyhow::bail;
+use handlebars::Handlebars;
 use log::debug;
 use md5::{Digest, Md5};
 use reqwest::{Certificate, Identity};
@@ -410,54 +411,86 @@ pub(crate) fn format_performance_data(
     mapping: &Mapping,
     metric: &[&HashMap<String, String>],
     values: &[f64],
-) -> Vec<String> {
-    let metric: Vec<String> = metric
-        .iter()
-        .map(|unordered_ts| {
-            let ordered_ts = BTreeMap::from_iter(unordered_ts.iter());
-            let metric_str = ordered_ts.iter().fold(String::new(), |mut acc, metric| {
-                acc.push_str(metric.0);
-                acc.push_str(metric.1);
-                acc
-            });
-            let mut digest = format!("{:x}", Md5::digest(&metric_str));
-            digest.truncate(6);
-            digest
-        })
-        .collect();
-
-    let data: Vec<(&String, &f64)> = metric.iter().zip(values.iter()).collect();
-
+) -> Result<Vec<String>, anyhow::Error> {
     let mut result = vec![];
 
-    for item in data {
-        let perf_data = format!(
-            "'{}/{}'={}{};{};{};;",
-            &mapping.name,
-            item.0,
-            item.1,
-            mapping
-                .performance_data
-                .uom
-                .as_ref()
-                .unwrap_or(&String::new()),
-            mapping
-                .thresholds
-                .warning
-                .as_ref()
-                .map(|w| w.to_string())
-                .unwrap_or_default(),
-            mapping
-                .thresholds
-                .critical
-                .as_ref()
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
-        );
-        result.push(perf_data);
+    if let Some(ref template) = mapping.performance_data.label {
+        let handlebars = Handlebars::new();
+
+        for item in values.iter().enumerate() {
+            let context = RenderContext::from(mapping, metric[item.0], item.1);
+            let label = handlebars.render_template(template, &context)?;
+            let perf_data = format!(
+                "'{}'={}{};{};{};;",
+                label,
+                item.1,
+                mapping
+                    .performance_data
+                    .uom
+                    .as_ref()
+                    .unwrap_or(&String::new()),
+                mapping
+                    .thresholds
+                    .warning
+                    .as_ref()
+                    .map(|w| w.to_string())
+                    .unwrap_or_default(),
+                mapping
+                    .thresholds
+                    .critical
+                    .as_ref()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default(),
+            );
+            result.push(perf_data);
+        }
+    } else {
+        let metric: Vec<String> = metric
+            .iter()
+            .map(|unordered_ts| {
+                let ordered_ts = BTreeMap::from_iter(unordered_ts.iter());
+                let metric_str = ordered_ts.iter().fold(String::new(), |mut acc, metric| {
+                    acc.push_str(metric.0);
+                    acc.push_str(metric.1);
+                    acc
+                });
+                let mut digest = format!("{:x}", Md5::digest(&metric_str));
+                digest.truncate(6);
+                digest
+            })
+            .collect();
+
+        let data: Vec<(&String, &f64)> = metric.iter().zip(values.iter()).collect();
+
+        for item in data {
+            let perf_data = format!(
+                "'{}/{}'={}{};{};{};;",
+                &mapping.name,
+                item.0,
+                item.1,
+                mapping
+                    .performance_data
+                    .uom
+                    .as_ref()
+                    .unwrap_or(&String::new()),
+                mapping
+                    .thresholds
+                    .warning
+                    .as_ref()
+                    .map(|w| w.to_string())
+                    .unwrap_or_default(),
+                mapping
+                    .thresholds
+                    .critical
+                    .as_ref()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default(),
+            );
+            result.push(perf_data);
+        }
     }
 
-    result
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -700,6 +733,90 @@ mod tests {
             format!("'foobar/c9308d'=20.5;;;;"),
         ];
 
-        assert_eq!(format_performance_data(&mapping, &metric, &values), result);
+        assert_eq!(
+            format_performance_data(&mapping, &metric, &values).unwrap(),
+            result
+        );
+    }
+
+    #[test]
+    fn test_format_performance_data_with_custom_label() {
+        let mapping = Mapping {
+            name: "random name".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: None,
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData {
+                enabled: true,
+                label: Some("{{ name }}".to_string()),
+                uom: None,
+            },
+        };
+        let mut metric1 = HashMap::new();
+        metric1.insert("some_label".to_string(), "some_value".to_string());
+        metric1.insert("another_label".to_string(), "another_value".to_string());
+
+        let mut metric2 = HashMap::new();
+        metric2.insert("foo_label".to_string(), "foo_value".to_string());
+        metric2.insert("bar_label".to_string(), "bar_value".to_string());
+
+        let metric = vec![&metric1, &metric2];
+        let values = vec![5.0, 15.0];
+
+        let result = vec![
+            format!("'random name'=5;;;;"),
+            format!("'random name'=15;;;;"),
+        ];
+
+        assert_eq!(
+            format_performance_data(&mapping, &metric, &values).unwrap(),
+            result
+        );
+    }
+
+    #[test]
+    fn test_format_performance_data_from_result_label_set() {
+        let mapping = Mapping {
+            name: "random name".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: None,
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData {
+                enabled: true,
+                label: Some("{{ metric.some_label }}".to_string()),
+                uom: None,
+            },
+        };
+        let mut metric1 = HashMap::new();
+        metric1.insert("some_label".to_string(), "some_value".to_string());
+        metric1.insert("another_label".to_string(), "another_value".to_string());
+
+        let mut metric2 = HashMap::new();
+        metric2.insert("some_label".to_string(), "foo_value".to_string());
+        metric2.insert("bar_label".to_string(), "bar_value".to_string());
+
+        let metric = vec![&metric1, &metric2];
+        let values = vec![5.0, 15.0];
+
+        let result = vec![format!("'some_value'=5;;;;"), format!("'foo_value'=15;;;;")];
+
+        assert_eq!(
+            format_performance_data(&mapping, &metric, &values).unwrap(),
+            result
+        );
     }
 }

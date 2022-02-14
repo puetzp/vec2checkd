@@ -1,4 +1,6 @@
 use nagios_range::NagiosRange;
+use serde::Serialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -28,6 +30,31 @@ pub(crate) struct Mapping {
     pub last_apply: Instant,
     pub plugin_output: Option<String>,
     pub performance_data: PerformanceData,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct RenderContext<'a> {
+    pub name: &'a str,
+    pub host: &'a str,
+    pub service: &'a Option<String>,
+    pub metric: &'a HashMap<String, String>,
+    pub value: &'a f64,
+}
+
+impl<'a> RenderContext<'a> {
+    pub(crate) fn from(
+        mapping: &'a Mapping,
+        metric: &'a HashMap<String, String>,
+        value: &'a f64,
+    ) -> Self {
+        RenderContext {
+            name: &mapping.name,
+            host: &mapping.host,
+            service: &mapping.service,
+            metric: &metric,
+            value: &value,
+        }
+    }
 }
 
 pub(crate) struct PromConfig {

@@ -23,6 +23,7 @@ base64 = "0.13"
 gumdrop = "0.8"
 url = "2.2"
 md-5 = "0.10"
+handlebars  = "4.2"
 
 [package.metadata.deb]
 extended-description = "vec2checkd executes PromQL queries against the Prometheus HTTP API regularly and evaluates and translates the results to passive check results to be sent to the Icinga2 HTTP API"
