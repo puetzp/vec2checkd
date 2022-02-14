@@ -420,6 +420,10 @@ pub(crate) fn format_performance_data(
     let mut result = vec![];
     let mut unique_labels = HashSet::new();
 
+    // Render performance data labels from a handlebars template.
+    // As with the default label implementation the rendered string
+    // must be unique (so make sure to e.g. use a unique-across-time-series
+    // label).
     if let Some(ref template) = mapping.performance_data.label {
         let handlebars = Handlebars::new();
 
@@ -434,6 +438,10 @@ pub(crate) fn format_performance_data(
             }
         }
     } else {
+        // Concatenate all label keys and values within a vector to a single
+        // string, compute the MD5 checksum from it and yield the first six
+        // digits of this checksum. This default presumes that this results
+        // in unique (and stable across queries) performance data labels.
         let metric: Vec<String> = metric
             .iter()
             .map(|unordered_ts| {
