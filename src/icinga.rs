@@ -425,7 +425,8 @@ pub(crate) fn format_performance_data(
     // must be unique (so make sure to e.g. use a unique-across-time-series
     // label).
     if let Some(ref template) = mapping.performance_data.label {
-        let handlebars = Handlebars::new();
+        let mut handlebars = Handlebars::new();
+        handlebars.set_strict_mode(true);
 
         for item in values.iter().enumerate() {
             let context = RenderContext::from(mapping, metric[item.0], item.1);
