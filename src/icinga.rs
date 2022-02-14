@@ -463,6 +463,7 @@ pub(crate) fn format_performance_data(
     Ok(result)
 }
 
+#[inline]
 fn insert_performance_data(result: &mut Vec<String>, mapping: &Mapping, label: &str, value: &f64) {
     let perf_data = format!(
         "'{}'={}{};{};{};;",
@@ -786,7 +787,7 @@ mod tests {
             performance_data: PerformanceData {
                 enabled: true,
                 label: Some("{{ metric.some_label }}".to_string()),
-                uom: None,
+                uom: Some("%".to_string()),
             },
         };
         let mut metric1 = HashMap::new();
@@ -800,7 +801,10 @@ mod tests {
         let metric = vec![&metric1, &metric2];
         let values = vec![5.0, 15.0];
 
-        let result = vec![format!("'some_value'=5;;;;"), format!("'foo_value'=15;;;;")];
+        let result = vec![
+            format!("'some_value'=5%;;;;"),
+            format!("'foo_value'=15%;;;;"),
+        ];
 
         assert_eq!(
             format_performance_data(&mapping, &metric, &values).unwrap(),
