@@ -218,45 +218,6 @@ pub(crate) fn build_payload(
     })
 }
 
-pub mod performance_data {
-    use super::*;
-
-    /// Format and return a performance data string from a mapping and a single value.
-    /// Attach warning and critical thresholds to the performance data string when
-    /// they are configured in the mapping.
-    /// See https://nagios-plugins.org/doc/guidelines.html#AEN200 for the
-    /// expected format.
-    #[inline]
-    pub(crate) fn format_single_item(mapping: &Mapping, value: f64) -> String {
-        format!(
-            "'{}'={}{};{};{};;",
-            mapping
-                .performance_data
-                .label
-                .as_ref()
-                .unwrap_or(&mapping.name),
-            value,
-            mapping
-                .performance_data
-                .uom
-                .as_ref()
-                .unwrap_or(&String::new()),
-            mapping
-                .thresholds
-                .warning
-                .as_ref()
-                .map(|w| w.to_string())
-                .unwrap_or_default(),
-            mapping
-                .thresholds
-                .critical
-                .as_ref()
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
-        )
-    }
-}
-
 pub mod plugin_output {
     use super::*;
 
@@ -432,9 +393,43 @@ pub mod plugin_output {
     }
 }
 
+/// Return performance data string corresponding to this mapping and value.
+/// Attach warning and critical thresholds to the performance data string when
+/// they are configured in the mapping.
+/// See https://nagios-plugins.org/doc/guidelines.html#AEN200 for the
+/// expected format.
+#[inline]
+pub(crate) fn format_performance_data(mapping: &Mapping, value: f64) -> String {
+    format!(
+        "'{}'={}{};{};{};;",
+        mapping
+            .performance_data
+            .label
+            .as_ref()
+            .unwrap_or(&mapping.name),
+        value,
+        mapping
+            .performance_data
+            .uom
+            .as_ref()
+            .unwrap_or(&String::new()),
+        mapping
+            .thresholds
+            .warning
+            .as_ref()
+            .map(|w| w.to_string())
+            .unwrap_or_default(),
+        mapping
+            .thresholds
+            .critical
+            .as_ref()
+            .map(|c| c.to_string())
+            .unwrap_or_default(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::icinga::performance_data::*;
     use crate::icinga::plugin_output::*;
     use crate::icinga::*;
     use crate::types::{Mapping, ThresholdPair};
@@ -650,11 +645,11 @@ mod tests {
         };
         let value = 5.0;
         let result = format!("'foobar'=5;;;;");
-        assert_eq!(format_single_item(&mapping, value), result);
+        assert_eq!(format_performance_data(&mapping, value), result);
 
         let value = 5.5;
         let result = format!("'foobar'=5.5;;;;");
-        assert_eq!(format_single_item(&mapping, value), result);
+        assert_eq!(format_performance_data(&mapping, value), result);
     }
 
     #[test]
@@ -675,7 +670,7 @@ mod tests {
         };
         let value = 5.5;
         let result = format!("'foobar'=5.5;@0:10;@0:100;;");
-        assert_eq!(format_single_item(&mapping, value), result);
+        assert_eq!(format_performance_data(&mapping, value), result);
     }
 
     #[test]
@@ -700,6 +695,6 @@ mod tests {
         };
         let value = 5.5;
         let result = format!("'alternative'=5.5c;@0:10;@0:100;;");
-        assert_eq!(format_single_item(&mapping, value), result);
+        assert_eq!(format_performance_data(&mapping, value), result);
     }
 }
