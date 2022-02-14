@@ -430,12 +430,8 @@ pub(crate) fn format_performance_data(
         for item in values.iter().enumerate() {
             let context = RenderContext::from(mapping, metric[item.0], item.1);
             let label = handlebars.render_template(template, &context)?;
-
-            if unique_labels.insert(label.clone()) {
-                insert_performance_data(&mut result, &mapping, &label, &item.1);
-            } else {
-                bail!("the performance data label '{}' is already present, labels must be unique within a set of performance data", label);
-            }
+            check_label(&mut unique_labels, &label)?;
+            insert_performance_data(&mut result, &mapping, &label, &item.1);
         }
     } else {
         // Concatenate all label keys and values within a vector to a single
@@ -459,16 +455,36 @@ pub(crate) fn format_performance_data(
 
         for item in values.iter().enumerate() {
             let label = format!("{}/{}", &mapping.name, metric[item.0]);
-
-            if unique_labels.insert(label.clone()) {
-                insert_performance_data(&mut result, &mapping, &label, &item.1);
-            } else {
-                bail!("the performance data label '{}' is already present, labels must be unique within a set of performance data", label);
-            }
+            check_label(&mut unique_labels, &label)?;
+            insert_performance_data(&mut result, &mapping, &label, &item.1);
         }
     }
 
     Ok(result)
+}
+
+/// Make sure that performance data labels are not empty, duplicated or multi-line.
+#[inline]
+fn check_label(labels: &mut HashSet<String>, label: &str) -> Result<(), anyhow::Error> {
+    // Empty strings can only be generated from a template, so the error message
+    // refers to the template specifically.
+    if label.is_empty() {
+        bail!("the performance data label template produced an empty string, performance data labels must not be empty");
+    }
+
+    // Multi-line strings can only be generated from a template, so the error message
+    // refers to the template specifically.
+    if label.lines().count() > 1 {
+        bail!("the performance data label template produced a multi-line string, performance data labels must be singe-line ");
+    }
+
+    // Duplicates could in theory be generated from either a template or the default
+    // labeling implementation.
+    if !labels.insert(label.to_owned()) {
+        bail!("the performance data label '{}' is already present, labels must be unique within a set of performance data", label);
+    }
+
+    Ok(())
 }
 
 #[inline]
