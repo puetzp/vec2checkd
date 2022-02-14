@@ -88,7 +88,7 @@ pub(crate) async fn execute_task(
                 let item = instant_vector.first().unwrap();
                 let value = item.sample().value();
                 let metric = item.metric().clone();
-                let exit_status = icinga::determine_exit_status_from_value(&mapping.thresholds, value);
+                let exit_status = icinga::determine_exit_status(&mapping.thresholds, &[value]);
 
                 let plugin_output = if mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
@@ -111,7 +111,7 @@ pub(crate) async fn execute_task(
             } else {
                 debug!("'{}': Process the PromQL query result set (total of {} items)", mapping.name, item_count);
                 let values: Vec<f64> = instant_vector.iter().map(|item| item.sample().value()).collect();
-                let exit_status = icinga::determine_exit_status_from_values(&mapping.thresholds, &values);
+                let exit_status = icinga::determine_exit_status(&mapping.thresholds, &values);
 
                 let plugin_output = if mapping.plugin_output.is_none() {
                     debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);

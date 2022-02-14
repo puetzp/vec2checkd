@@ -148,27 +148,9 @@ pub(crate) struct IcingaPayload {
     execution_end: u64,
 }
 
-/// The basic Nagios stuff. Check if a value lies in the warning/critical range
-/// while the critical range takes precedence over the warning range.
-pub(crate) fn determine_exit_status_from_value(thresholds: &ThresholdPair, value: f64) -> u8 {
-    if let Some(critical) = &thresholds.critical {
-        if critical.check(value) {
-            return 2;
-        }
-    }
-
-    if let Some(warning) = &thresholds.warning {
-        if warning.check(value) {
-            return 1;
-        }
-    }
-
-    0
-}
-
 /// The basic Nagios stuff. Check if at least one value lies in the warning/critical
 /// range while the critical range takes precedence over the warning range.
-pub(crate) fn determine_exit_status_from_values(thresholds: &ThresholdPair, values: &[f64]) -> u8 {
+pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, values: &[f64]) -> u8 {
     if let Some(critical) = &thresholds.critical {
         if values.iter().any(|v| critical.check(*v)) {
             return 2;
