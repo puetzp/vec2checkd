@@ -1,7 +1,6 @@
-use crate::error::*;
 use crate::types::*;
 use crate::util;
-use anyhow::bail;
+use anyhow::{bail, Context};
 use handlebars::Handlebars;
 use log::debug;
 use md5::{Digest, Md5};
@@ -150,24 +149,6 @@ pub(crate) struct IcingaPayload {
     execution_end: u64,
 }
 
-/// The basic Nagios stuff. Check if at least one value lies in the warning/critical
-/// range while the critical range takes precedence over the warning range.
-pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, values: &[f64]) -> u8 {
-    if let Some(critical) = &thresholds.critical {
-        if values.iter().any(|v| critical.check(*v)) {
-            return 2;
-        }
-    }
-
-    if let Some(warning) = &thresholds.warning {
-        if values.iter().any(|v| warning.check(*v)) {
-            return 1;
-        }
-    }
-
-    0
-}
-
 /// Take a mapping and all additional computed parameters and build
 /// the body of the Icinga API request from it.
 pub(crate) fn build_payload(
@@ -226,73 +207,21 @@ pub mod plugin_output {
     /// Replace placeholders in the "plugin output" (in nagios-speak) by interpreting
     /// and expanding the string with parameters from the check result.
     /// Note that this behaves almost exactly like `config::preformat_plugin_output`.
-    pub(crate) fn format_plugin_output(
+    pub(crate) fn format_from_template(
+        template: &str,
         mapping: &Mapping,
-        value: f64,
-        metric: HashMap<String, String>,
+        data: Vec<(&&HashMap<String, String>, &f64)>,
         exit_status: u8,
     ) -> Result<String, anyhow::Error> {
-        let mut plugin_output = mapping.plugin_output.as_ref().unwrap().clone();
-
-        // Note that if you want to insert a label value from the
-        // PromQL query result, retrieving that value may fail at
-        // runtime because the closure below actually allows for
-        // a greater range of valid characters than is available
-        // for label values, which is [a-zA-Z_][a-zA-Z0-9_]* as per
-        // the Prometheus documentation.
-        while let Some((position, var_ident)) =
-            plugin_output.char_indices().find(|(_, c)| *c == '$')
-        {
-            let mut identifier = plugin_output[position + 1..]
-                .chars()
-                .take_while(|c| c.is_alphabetic() || *c == '_' || *c == '.')
-                .collect::<String>();
-
-            identifier.insert(0, var_ident);
-
-            let replacement = match identifier.as_str() {
-                "$value" => util::truncate_to_string(value),
-                "$state" => match &mapping.service {
-                    Some(_) => match exit_status {
-                        3 => "UNKNOWN".to_string(),
-                        2 => "CRITICAL".to_string(),
-                        1 => "WARNING".to_string(),
-                        0 => "OK".to_string(),
-                        _ => unreachable!(),
-                    },
-                    None => match exit_status {
-                        2 | 3 => "DOWN".to_string(),
-                        0 | 1 => "UP".to_string(),
-                        _ => unreachable!(),
-                    },
-                },
-                "$exit_status" => exit_status.to_string(),
-                "$metric" => metric
-                    .get("__name__")
-                    .ok_or(MissingLabelError {
-                        identifier: identifier.clone(),
-                        label: "__name__".to_string(),
-                    })?
-                    .clone(),
-                _ if identifier.starts_with("$labels.") => {
-                    let metric_key = identifier.as_str().split_once('.').unwrap().1;
-                    metric
-                        .get(metric_key)
-                        .ok_or(MissingLabelError {
-                            identifier: identifier.clone(),
-                            label: metric_key.to_string(),
-                        })?
-                        .clone()
-                }
-                _ => {
-                    bail!("the plugin output placeholder '{}' is invalid", identifier)
-                }
-            };
-
-            let range = position..position + identifier.len();
-
-            plugin_output.replace_range(range, &replacement);
-        }
+        let state = exit_status_to_state(mapping.service.as_ref(), &exit_status);
+        let mut handlebars = Handlebars::new();
+        handlebars.set_strict_mode(true);
+        let context = PluginOutputRenderContext::from(&mapping, data, &exit_status, &state);
+        let plugin_output = handlebars
+            .render_template(template, &context)
+            .with_context(|| {
+                "failed to render plugin output from handlebars template using the given context"
+            })?;
 
         Ok(plugin_output)
     }
@@ -315,12 +244,12 @@ pub mod plugin_output {
         exit_status: u8,
     ) -> String {
         let value = util::truncate_to_string(value);
+        let state = exit_status_to_state(mapping.service.as_ref(), &exit_status);
         match exit_status {
             2 => {
                 // Can be unwrapped safely as exit status 2 is only possible when a
                 // critical threshold was given.
                 let crit_range = mapping.thresholds.critical.as_ref().unwrap().to_string();
-                let state = mapping.service.as_ref().map_or("DOWN", |_| "CRITICAL");
                 format!(
                     "[{}] PromQL query returned one result within the critical range ({} in {})",
                     state, value, crit_range
@@ -330,14 +259,12 @@ pub mod plugin_output {
                 // Can be unwrapped safely as exit status 1 is only possible when a
                 // warning threshold was given.
                 let warn_range = mapping.thresholds.warning.as_ref().unwrap().to_string();
-                let state = mapping.service.as_ref().map_or("UP", |_| "WARNING");
                 format!(
                     "[{}] PromQL query returned one result within the warning range ({} in {})",
                     state, value, warn_range
                 )
             }
             0 => {
-                let state = mapping.service.as_ref().map_or("UP", |_| "OK");
                 format!("[{}] PromQL query returned one result ({})", state, value)
             }
             // Exit status "3"/"UNKNOWN" can be ignored safely as it has been handled
@@ -395,6 +322,36 @@ pub mod plugin_output {
     }
 }
 
+/// The basic Nagios stuff. Check if at least one value lies in the warning/critical
+/// range while the critical range takes precedence over the warning range.
+pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, values: &[f64]) -> u8 {
+    if let Some(critical) = &thresholds.critical {
+        if values.iter().any(|v| critical.check(*v)) {
+            return 2;
+        }
+    }
+
+    if let Some(warning) = &thresholds.warning {
+        if values.iter().any(|v| warning.check(*v)) {
+            return 1;
+        }
+    }
+
+    0
+}
+
+/// Also basic Nagios stuff. A particular exit status is associated with a given
+/// state. The state differs for host and service objects.
+fn exit_status_to_state(service: Option<&String>, exit_status: &u8) -> String {
+    match exit_status {
+        3 => "UNKNOWN".to_string(),
+        2 => service.map_or("DOWN", |_| "CRITICAL").to_string(),
+        1 => service.map_or("UP", |_| "WARNING").to_string(),
+        0 => service.map_or("UP", |_| "OK").to_string(),
+        _ => unreachable!(),
+    }
+}
+
 /// Process and return an array of performance data strings.
 /// By default performance data labels are built from the mapping name and the
 /// MD5-hash of the label set of each time series in the query result set.
@@ -429,8 +386,10 @@ pub(crate) fn format_performance_data(
         handlebars.set_strict_mode(true);
 
         for item in values.iter().enumerate() {
-            let context = RenderContext::from(mapping, metric[item.0], item.1);
-            let label = handlebars.render_template(template, &context)?;
+            let context = PerformanceDataRenderContext::from(mapping, metric[item.0]);
+            let label = handlebars
+                .render_template(template, &context)
+                .with_context(|| "failed to render performance data from handlebars template using the given context")?;
             check_label(&mut unique_labels, &label)?;
             insert_performance_data(&mut result, &mapping, &label, &item.1);
         }

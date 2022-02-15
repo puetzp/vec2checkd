@@ -83,8 +83,6 @@ pub(crate) async fn execute_task(
             let performance_data = None;
             (plugin_output, exit_status, performance_data)
         } else {
-            let item_count = instant_vector.len();
-
             let metric: Vec<&HashMap<String, String>> = instant_vector.iter().map(|item| item.metric()).collect();
             let values: Vec<f64> = instant_vector.iter().map(|item| item.sample().value()).collect();
             let exit_status = icinga::determine_exit_status(&mapping.thresholds, &values);
@@ -95,33 +93,20 @@ pub(crate) async fn execute_task(
                 None
             };
 
-            let plugin_output = if item_count == 1 {
-                debug!("'{}': Process the one and only item in the PromQL query result set", mapping.name);
-                let item = instant_vector.first().unwrap();
-                let value = item.sample().value();
-
-                if mapping.plugin_output.is_none() {
-                    debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
+            let plugin_output = if let Some(ref template) = mapping.plugin_output {
+                debug!("'{}': Build the plugin output from the following handlebars template: {}", mapping.name, template);
+                let data: Vec<(&&HashMap<String, String>, &f64)> = metric.iter().zip(values.iter()).collect();
+                icinga::plugin_output::format_from_template(&template, &mapping, data, exit_status)?
+            } else {
+                let item_count = instant_vector.len();
+                if item_count == 1 {
+                    debug!("'{}': Build default plugin output from the one and only item in the PromQL query result set", mapping.name);
+                    let item = instant_vector.first().unwrap();
+                    let value = item.sample().value();
                     icinga::plugin_output::format_default_single_item(&mapping, value, exit_status)
                 } else {
-                    debug!("'{}': Process dynamic parts of custom plugin output template: {}", mapping.name, mapping.plugin_output.as_ref().unwrap());
-//                    let out = icinga::plugin_output::format_plugin_output(&mapping, value, metric, exit_status)?;
-//                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
-                    //                    out
-                    format!("")
-                }
-            } else {
-                debug!("'{}': Process the PromQL query result set (total of {} items)", mapping.name, item_count);
-
-                if mapping.plugin_output.is_none() {
-                    debug!("'{}': Use default plugin output as no custom output template is configured", mapping.name);
+                    debug!("'{}': Build default plugin output from {} items in the PromQL query result set", mapping.name, item_count);
                     icinga::plugin_output::format_default_multiple_items(&mapping, &values, exit_status)
-                } else {
-                    debug!("'{}': Process dynamic parts of custom plugin output template: {}", mapping.name, mapping.plugin_output.as_ref().unwrap());
-//                    let out = icinga::plugin_output::format_plugin_output(&mapping, value, metric, exit_status)?;
-//                    debug!("'{}': Use the following custom plugin output: {}", mapping.name, out);
-//                    out
-                    format!("")
                 }
             };
             (plugin_output, exit_status, performance_data)

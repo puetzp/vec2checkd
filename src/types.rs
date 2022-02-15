@@ -1,4 +1,5 @@
 use nagios_range::NagiosRange;
+use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -19,6 +20,18 @@ impl Default for ThresholdPair {
     }
 }
 
+impl Serialize for ThresholdPair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut tp = serializer.serialize_struct("ThresholdPair", 2)?;
+        tp.serialize_field("warning", &self.warning.map(|w| w.to_string()))?;
+        tp.serialize_field("critical", &self.critical.map(|c| c.to_string()))?;
+        tp.end()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Mapping {
     pub name: String,
@@ -33,28 +46,70 @@ pub(crate) struct Mapping {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct RenderContext<'a> {
+pub(crate) struct PerformanceDataRenderContext<'a> {
     pub name: &'a str,
     pub host: &'a str,
     pub service: &'a Option<String>,
     pub metric: &'a HashMap<String, String>,
-    pub value: &'a f64,
 }
 
-impl<'a> RenderContext<'a> {
-    pub(crate) fn from(
-        mapping: &'a Mapping,
-        metric: &'a HashMap<String, String>,
-        value: &'a f64,
-    ) -> Self {
-        RenderContext {
+impl<'a> PerformanceDataRenderContext<'a> {
+    pub(crate) fn from(mapping: &'a Mapping, metric: &'a HashMap<String, String>) -> Self {
+        PerformanceDataRenderContext {
             name: &mapping.name,
             host: &mapping.host,
             service: &mapping.service,
             metric: &metric,
-            value: &value,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct PluginOutputRenderContext<'a> {
+    pub name: &'a str,
+    pub query: &'a str,
+    pub thresholds: &'a ThresholdPair,
+    pub host: &'a str,
+    pub service: &'a Option<String>,
+    pub interval: u64,
+    pub data: Vec<Data<'a>>,
+    pub exit_status: &'a u8,
+    pub state: &'a str,
+}
+
+impl<'a> PluginOutputRenderContext<'a> {
+    pub(crate) fn from(
+        mapping: &'a Mapping,
+        data: Vec<(&&'a HashMap<String, String>, &'a f64)>,
+        exit_status: &'a u8,
+        state: &'a str,
+    ) -> Self {
+        let data: Vec<Data<'a>> = data
+            .iter()
+            .map(|d| Data {
+                metric: *d.0,
+                value: d.1,
+            })
+            .collect();
+
+        PluginOutputRenderContext {
+            name: &mapping.name,
+            query: &mapping.query,
+            thresholds: &mapping.thresholds,
+            host: &mapping.host,
+            service: &mapping.service,
+            interval: mapping.interval.as_secs(),
+            data: data,
+            exit_status: &exit_status,
+            state: &state,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct Data<'a> {
+    metric: &'a HashMap<String, String>,
+    value: &'a f64,
 }
 
 pub(crate) struct PromConfig {
