@@ -611,69 +611,6 @@ mod tests {
     }
 
     #[test]
-    fn test_format_plugin_output_with_threshold_and_value_and_state() {
-        let mapping = Mapping {
-            name: "foobar".to_string(),
-            query: "up{random_label=\"random_value\"}".to_string(),
-            thresholds: ThresholdPair {
-                warning: None,
-                critical: Some(NagiosRange::from("@10:20").unwrap()),
-            },
-            host: "foo".to_string(),
-            service: None,
-            interval: Duration::from_secs(60),
-            last_apply: Instant::now(),
-            plugin_output: Some(String::from(
-                "[$state] Result value is $value (critical at: '@10:20')",
-            )),
-            performance_data: PerformanceData::default(),
-        };
-        // Test with a fractional number first.
-        let result = format_plugin_output(&mapping, 5.5, HashMap::new(), 0).unwrap();
-        assert_eq!(
-            result,
-            String::from("[UP] Result value is 5.50 (critical at: '@10:20')")
-        );
-        // Then test without the fractional, i.e. fractional is zero.
-        let result = format_plugin_output(&mapping, 5.0, HashMap::new(), 0).unwrap();
-        assert_eq!(
-            result,
-            String::from("[UP] Result value is 5 (critical at: '@10:20')")
-        );
-    }
-
-    #[test]
-    fn test_format_plugin_output_with_label_value() {
-        let mapping = Mapping {
-            name: "foobar".to_string(),
-            query: "up{random_label=\"random_value\"}".to_string(),
-            thresholds: ThresholdPair {
-                warning: None,
-                critical: Some(NagiosRange::from("@10:20").unwrap()),
-            },
-            host: "foo".to_string(),
-            service: None,
-            interval: Duration::from_secs(60),
-            last_apply: Instant::now(),
-            plugin_output: Some(String::from(
-                "I need that $labels.random_label in my output and the metric value '$metric' while we're at it",
-            )),
-            performance_data: PerformanceData::default(),
-        };
-        let mut metric = HashMap::new();
-        metric.insert("__name__".to_string(), "up".to_string());
-        metric.insert("random_label".to_string(), "random_value".to_string());
-
-        let result = format_plugin_output(&mapping, 0.0, metric, 0).unwrap();
-        assert_eq!(
-            result,
-            String::from(
-                "I need that random_value in my output and the metric value 'up' while we're at it"
-            )
-        );
-    }
-
-    #[test]
     fn test_format_performance_data() {
         let mapping = Mapping {
             name: "foobar".to_string(),
@@ -828,5 +765,89 @@ mod tests {
         let values = vec![5.0, 15.0];
 
         assert!(format_performance_data(&mapping, &metric, &values).is_err(),);
+    }
+
+    #[test]
+    fn test_format_plugin_output_from_template() {
+        let mapping = Mapping {
+            name: "random name".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: Some("bar".to_string()),
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some("[{{ state }}] Trivial templating test; {{ data.0.metric.some_label }}; every {{ interval }} seconds".to_string()),
+            performance_data: PerformanceData::default(),
+        };
+        let mut metric1 = HashMap::new();
+        metric1.insert("some_label".to_string(), "some_value".to_string());
+        metric1.insert("another_label".to_string(), "another_value".to_string());
+
+        assert_eq!(
+            format_from_template(
+                mapping.plugin_output.as_ref().unwrap(),
+                &mapping,
+                vec![(&&metric1, &5.0)],
+                0
+            )
+            .unwrap(),
+            "[OK] Trivial templating test; some_value; every 60 seconds".to_string()
+        );
+    }
+
+    #[test]
+    fn test_format_plugin_output_from_template_with_each_loop() {
+        let mapping = Mapping {
+            name: "random name".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: Some("bar".to_string()),
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(
+                "[{{ state }}] Overall bla bla
+{{ #each data }}
+{{ this.metric.known_label }} is {{ this.value }}
+{{ /each }}
+"
+                .to_string(),
+            ),
+            performance_data: PerformanceData::default(),
+        };
+        let mut metric1 = HashMap::new();
+        metric1.insert("known_label".to_string(), "foo_value".to_string());
+        metric1.insert("another_label".to_string(), "another_value".to_string());
+
+        let mut metric2 = HashMap::new();
+        metric2.insert("known_label".to_string(), "bar_value".to_string());
+        metric2.insert("another_label".to_string(), "another_value".to_string());
+
+        let mut metric3 = HashMap::new();
+        metric3.insert("known_label".to_string(), "value".to_string());
+        metric3.insert("another_label".to_string(), "another_value".to_string());
+
+        assert_eq!(
+            format_from_template(
+                mapping.plugin_output.as_ref().unwrap(),
+                &mapping,
+                vec![(&&metric1, &5.0), (&&metric2, &15.0), (&&metric3, &25.5)],
+                2
+            )
+            .unwrap(),
+            "[CRITICAL] Overall bla bla
+foo_value is 5
+bar_value is 15
+value is 25.5
+"
+            .to_string()
+        );
     }
 }
