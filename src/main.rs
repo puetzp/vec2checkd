@@ -147,7 +147,7 @@ async fn main() -> Result<(), anyhow::Error> {
             mapping.last_apply = task_start;
 
             match execute_task(prom_client.clone(), icinga_client.clone(), mapping.clone()).await {
-                Ok(Ok(())) => info!(
+                Ok(Ok(())) => debug!(
                     "'{}': task finished in {} millisecond(s), next execution in ~{} second(s)",
                     mapping.name,
                     task_start.elapsed().as_millis(),
