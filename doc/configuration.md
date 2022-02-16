@@ -2,9 +2,9 @@
 
 ## General
 
-As was mentioned in the README each instance of vec2checkd by default reads its configuration file from `/etc/vec2checkd/conf.d/<instance_name>.yaml`. But another location can be provided via the `--config` flag. In the most general case nothing other than this file is required to get up and running.
+Each instance of vec2checkd by default reads its configuration file from `/etc/vec2checkd/conf.d/<instance_name>.yaml`. But another location can be provided via the `--config` flag.
 
-The overall structure of the configuration file is pretty simple:
+The overall structure of the configuration file is simple:
 
 ```yaml
 ---
@@ -18,16 +18,16 @@ icinga: {}
 mappings: {}
 ```
 
-The content of these sections is further explained below.
+The content of each section is further explained below.
 
 First of all some clarifications how PromQL query results are mapped to passive Icinga check results:
 
-* The "exit status", that is the Icinga host/service state is determined by comparing the PromQL query result value with warning and critical thresholds.
-* The passive check result is used to either update an Icinga host object (when _only_ the host name was provided in the mapping) or a service object (when _both_ the host name and service name were provided).
+* The overall "exit status", that is the Icinga host/service state is determined by comparing the value of each vector in the PromQL query result set with warning and critical thresholds. The most significant individual status determines the overall status (e.g. when ONE value lies within a critical threshold, the overall exit status is 2 => DOWN|CRITICAL).
+* A passive check result can update eiher an Icinga host object (when _only_ the host name was provided in the mapping) or a service object (when _both_ the host name and service name were provided).
 
 ### Prometheus
 
-At this point the Prometheus section is rather slim.
+At this point the Prometheus section only allows setting the `host` to send PromQL queries to.
 
 ```yaml
 prometheus:
@@ -40,6 +40,7 @@ prometheus:
 ### Icinga
 
 The Icinga API is more difficult to set up in that it _requires_ HTTPS and either HTTP Basic Auth or x509 authentication. Please refer to the [Icinga documentation](https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/) in order to set up the API and a user object with an adequate set of permissions.
+Once the API is set up, configure the required parameters in the `icinga` section.
 
 ```yaml
 icinga:
@@ -68,12 +69,11 @@ icinga:
     client_key: '/var/lib/vec2checkd/ssl'
 ```
 
-Note that the Icinga ApiUser username and password (Basic auth.) may also be read from the environment using the variables **V2C_ICINGA_USERNAME** and **V2C_ICINGA_PASSWORD** respectively. When the username and password are defined in both the environment and the configuration file, the values from the environment take precedence over the YAML.
+Note that the Icinga ApiUser username and password (Basic auth.) may also be read from the environment using the variables **V2C_ICINGA_USERNAME** and **V2C_ICINGA_PASSWORD** respectively. When the username and password are defined in both the environment and the configuration file, the values from the environment take precedence over the YAML parameters.
 
 ### Mappings
 
-As hinted above a "mapping" defines PromQL queries to execute regularly and how to map the result of those queries to passive check results that are ultimately sent to the Icinga HTTP API.
-Note that the daemon will simply exit when no mappings are configured.
+A "mapping" defines a PromQL query to be executed and how to map the query result to a passive check result that is ultimately sent to the Icinga HTTP API.
 
 ```yaml
 mappings:
@@ -107,7 +107,6 @@ mappings:
       critical: '<nagios_range>'
 
     # Used to customize the "plugin output" (in nagios-speak) when the default output does not suffice.
-    # This is further explained below.
     # OPTIONAL.
     plugin_output: '<custom_output>'
 
@@ -127,7 +126,11 @@ mappings:
       uom: '<custom_unit_of_measurement>'
 ```
 
-**NOTE:** _Nagios ranges_ and _UOMs_ are explained in the [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT).
+Some of these parameters may need to be explained further:
+
+* On valid _Nagios ranges_ see [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT) or [Icinga2 documentation](https://icinga.com/docs/icinga-2/latest/doc/05-service-monitoring/#threshold-ranges)
+* On _plugin output_ and customization see [this file](plugin_output.md)
+* On _performance data_ and customization_ see [this file](performance_data.md)
 
 #### Details on plugin output
 
