@@ -72,7 +72,7 @@ pub(crate) struct PluginOutputRenderContext<'a> {
     pub host: &'a str,
     pub service: &'a Option<String>,
     pub interval: u64,
-    pub data: Vec<Data<'a>>,
+    pub data: &'a [Data<'a>],
     pub exit_status: &'a u8,
     pub state: &'a str,
 }
@@ -80,18 +80,10 @@ pub(crate) struct PluginOutputRenderContext<'a> {
 impl<'a> PluginOutputRenderContext<'a> {
     pub(crate) fn from(
         mapping: &'a Mapping,
-        data: Vec<(&&'a HashMap<String, String>, &'a f64)>,
+        data: &'a [Data<'a>],
         exit_status: &'a u8,
         state: &'a str,
     ) -> Self {
-        let data: Vec<Data<'a>> = data
-            .iter()
-            .map(|d| Data {
-                metric: *d.0,
-                value: d.1,
-            })
-            .collect();
-
         PluginOutputRenderContext {
             name: &mapping.name,
             query: &mapping.query,
@@ -108,8 +100,12 @@ impl<'a> PluginOutputRenderContext<'a> {
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct Data<'a> {
-    metric: &'a HashMap<String, String>,
-    value: &'a f64,
+    pub metric: &'a HashMap<String, String>,
+    pub value: f64,
+    pub is_warning: bool,
+    pub is_critical: bool,
+    pub state: String,
+    pub exit_status: u8,
 }
 
 pub(crate) struct PromConfig {

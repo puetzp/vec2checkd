@@ -1,9 +1,8 @@
 use crate::icinga;
-use crate::types::Mapping;
+use crate::types::{Data, Mapping};
 use anyhow::anyhow;
 use anyhow::Context;
 use log::{debug, warn};
-use std::collections::HashMap;
 use std::num::FpCategory;
 use std::time::{Duration, SystemTime};
 
@@ -83,33 +82,46 @@ pub(crate) async fn execute_task(
             let performance_data = None;
             (plugin_output, exit_status, performance_data)
         } else {
-            let metric: Vec<&HashMap<String, String>> = instant_vector.iter().map(|item| item.metric()).collect();
-            let values: Vec<f64> = instant_vector.iter().map(|item| item.sample().value()).collect();
-            let exit_status = icinga::determine_exit_status(&mapping.thresholds, &values);
+            let data: Vec<Data> = instant_vector.iter().map(|ts| {
+                // Discard the timestamp that is also part of a sample.
+                let value = ts.sample().value();
+                // Compute the exit status per time series, i.e. if the value breaches any thresholds.
+                let exit_status = icinga::check_thresholds(&mapping.thresholds, value);
+                let state = icinga::exit_status_to_state(mapping.service.as_ref(), &exit_status);
+                Data {
+                    metric: ts.metric(),
+                    value: value,
+                    is_warning: exit_status == 1,
+                    is_critical: exit_status == 2,
+                    exit_status: exit_status,
+                    state: state,
+                }
+            }).collect();
+
+            let overall_exit_status = data.iter().max_by(|x, y| x.exit_status.cmp(&y.exit_status)).unwrap().exit_status;
 
             let performance_data = if mapping.performance_data.enabled {
-                Some(icinga::format_performance_data(&mapping, &metric, &values)?)
+                Some(icinga::format_performance_data(&mapping, &data)?)
             } else {
                 None
             };
 
             let plugin_output = if let Some(ref template) = mapping.plugin_output {
                 debug!("'{}': Build the plugin output from the following handlebars template: {}", mapping.name, template);
-                let data: Vec<(&&HashMap<String, String>, &f64)> = metric.iter().zip(values.iter()).collect();
-                icinga::plugin_output::format_from_template(&template, &mapping, data, exit_status)?
+                icinga::plugin_output::format_from_template(&template, &mapping, data, overall_exit_status)?
             } else {
-                let item_count = instant_vector.len();
+                let item_count = data.len();
                 if item_count == 1 {
                     debug!("'{}': Build default plugin output from the one and only item in the PromQL query result set", mapping.name);
-                    let item = instant_vector.first().unwrap();
-                    let value = item.sample().value();
-                    icinga::plugin_output::format_default_single_item(&mapping, value, exit_status)
+                    let value = data.first().unwrap().value;
+                    icinga::plugin_output::format_default_single_item(&mapping, value, overall_exit_status)
                 } else {
                     debug!("'{}': Build default plugin output from {} items in the PromQL query result set", mapping.name, item_count);
-                    icinga::plugin_output::format_default_multiple_items(&mapping, &values, exit_status)
+                    let values: Vec<&f64> = data.iter().map(|d| &d.value).collect();
+                    icinga::plugin_output::format_default_multiple_items(&mapping, &values, overall_exit_status)
                 }
             };
-            (plugin_output, exit_status, performance_data)
+            (plugin_output, overall_exit_status, performance_data)
         };
 
         let exec_end = get_unix_timestamp().with_context(|| {

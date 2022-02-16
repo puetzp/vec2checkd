@@ -8,7 +8,7 @@ use md5::{Digest, Md5};
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
 use std::boxed::Box;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
 use std::io::Read;
 
@@ -209,17 +209,17 @@ pub mod plugin_output {
     /// Replace placeholders in the "plugin output" (in nagios-speak) by interpreting
     /// and expanding the string with parameters from the check result.
     /// Note that this behaves almost exactly like `config::preformat_plugin_output`.
-    pub(crate) fn format_from_template(
+    pub(crate) fn format_from_template<'a>(
         template: &str,
         mapping: &Mapping,
-        data: Vec<(&&HashMap<String, String>, &f64)>,
+        data: Vec<Data<'a>>,
         exit_status: u8,
     ) -> Result<String, anyhow::Error> {
         let state = exit_status_to_state(mapping.service.as_ref(), &exit_status);
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
-        let context = PluginOutputRenderContext::from(&mapping, data, &exit_status, &state);
+        let context = PluginOutputRenderContext::from(&mapping, &data, &exit_status, &state);
         let plugin_output = handlebars
             .render_template(template, &context)
             .with_context(|| {
@@ -283,12 +283,12 @@ pub mod plugin_output {
     #[inline]
     pub(crate) fn format_default_multiple_items(
         mapping: &Mapping,
-        values: &[f64],
+        values: &[&f64],
         exit_status: u8,
     ) -> String {
         //        let value = util::truncate_to_string(value);
-        let min_value = values.iter().map(|v| *v).reduce(f64::min).unwrap();
-        let max_value = values.iter().map(|v| *v).reduce(f64::max).unwrap();
+        let min_value = values.iter().map(|v| **v).reduce(f64::min).unwrap();
+        let max_value = values.iter().map(|v| **v).reduce(f64::max).unwrap();
         let value_range = min_value..=max_value;
         match exit_status {
             2 => {
@@ -327,15 +327,15 @@ pub mod plugin_output {
 
 /// The basic Nagios stuff. Check if at least one value lies in the warning/critical
 /// range while the critical range takes precedence over the warning range.
-pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, values: &[f64]) -> u8 {
+pub(crate) fn check_thresholds(thresholds: &ThresholdPair, value: f64) -> u8 {
     if let Some(critical) = &thresholds.critical {
-        if values.iter().any(|v| critical.check(*v)) {
+        if critical.check(value) {
             return 2;
         }
     }
 
     if let Some(warning) = &thresholds.warning {
-        if values.iter().any(|v| warning.check(*v)) {
+        if warning.check(value) {
             return 1;
         }
     }
@@ -345,7 +345,7 @@ pub(crate) fn determine_exit_status(thresholds: &ThresholdPair, values: &[f64]) 
 
 /// Also basic Nagios stuff. A particular exit status is associated with a given
 /// state. The state differs for host and service objects.
-fn exit_status_to_state(service: Option<&String>, exit_status: &u8) -> String {
+pub(crate) fn exit_status_to_state(service: Option<&String>, exit_status: &u8) -> String {
     match exit_status {
         3 => "UNKNOWN".to_string(),
         2 => service.map_or("DOWN", |_| "CRITICAL").to_string(),
@@ -372,10 +372,9 @@ fn exit_status_to_state(service: Option<&String>, exit_status: &u8) -> String {
 /// See https://nagios-plugins.org/doc/guidelines.html#AEN200 for the
 /// expected format.
 #[inline]
-pub(crate) fn format_performance_data(
+pub(crate) fn format_performance_data<'a>(
     mapping: &Mapping,
-    metric: &[&HashMap<String, String>],
-    values: &[f64],
+    data: &[Data<'a>],
 ) -> Result<Vec<String>, anyhow::Error> {
     let mut result = vec![];
     let mut unique_labels = HashSet::new();
@@ -389,38 +388,36 @@ pub(crate) fn format_performance_data(
         handlebars.set_strict_mode(true);
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
 
-        for item in values.iter().enumerate() {
-            let context = PerformanceDataRenderContext::from(mapping, metric[item.0]);
+        for item in data.iter() {
+            let context = PerformanceDataRenderContext::from(mapping, &item.metric);
             let label = handlebars
                 .render_template(template, &context)
                 .with_context(|| "failed to render performance data from handlebars template using the given context")?;
             check_label(&mut unique_labels, &label)?;
-            insert_performance_data(&mut result, &mapping, &label, &item.1);
+            insert_performance_data(&mut result, &mapping, &label, &item.value);
         }
     } else {
         // Concatenate all label keys and values within a vector to a single
         // string, compute the MD5 checksum from it and yield the first six
         // digits of this checksum. This default presumes that this results
         // in unique (and stable across queries) performance data labels.
-        let metric: Vec<String> = metric
-            .iter()
-            .map(|unordered_ts| {
-                let ordered_ts = BTreeMap::from_iter(unordered_ts.iter());
-                let metric_str = ordered_ts.iter().fold(String::new(), |mut acc, metric| {
-                    acc.push_str(metric.0);
-                    acc.push_str(metric.1);
-                    acc
-                });
+        for item in data.iter() {
+            let checksum = {
+                let ordered_metric = BTreeMap::from_iter(item.metric.iter());
+                let metric_str = ordered_metric
+                    .iter()
+                    .fold(String::new(), |mut acc, metric| {
+                        acc.push_str(metric.0);
+                        acc.push_str(metric.1);
+                        acc
+                    });
                 let mut digest = format!("{:x}", Md5::digest(&metric_str));
                 digest.truncate(6);
                 digest
-            })
-            .collect();
-
-        for item in values.iter().enumerate() {
-            let label = format!("{}/{}", &mapping.name, metric[item.0]);
+            };
+            let label = format!("{}/{}", &mapping.name, checksum);
             check_label(&mut unique_labels, &label)?;
-            insert_performance_data(&mut result, &mapping, &label, &item.1);
+            insert_performance_data(&mut result, &mapping, &label, &item.value);
         }
     }
 
@@ -630,24 +627,46 @@ mod tests {
             plugin_output: None,
             performance_data: PerformanceData::default(),
         };
-        let mut metric1 = HashMap::new();
-        // Note that the order will be reversed here, when this HashMap is
-        // converted to a BTreeMap.
-        metric1.insert("some_label".to_string(), "some_value".to_string());
-        metric1.insert("another_label".to_string(), "another_value".to_string());
+        let mut data = vec![];
 
-        let mut metric2 = HashMap::new();
-        // Note that the order will be reversed here, when this HashMap is
-        // converted to a BTreeMap.
-        metric2.insert("foo_label".to_string(), "foo_value".to_string());
-        metric2.insert("bar_label".to_string(), "bar_value".to_string());
+        let mut metric = HashMap::new();
+        metric.insert("some_label".to_string(), "some_value".to_string());
+        metric.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 5.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
-        let mut metric3 = HashMap::new();
-        metric3.insert("test_label".to_string(), "test_value".to_string());
-        metric3.insert("z_label".to_string(), "z_value".to_string());
+        let mut metric = HashMap::new();
+        metric.insert("foo_label".to_string(), "foo_value".to_string());
+        metric.insert("bar_label".to_string(), "bar_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 15.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
-        let metric = vec![&metric1, &metric2, &metric3];
-        let values = vec![5.0, 15.0, 20.5];
+        let mut metric = HashMap::new();
+        metric.insert("test_label".to_string(), "test_value".to_string());
+        metric.insert("z_label".to_string(), "z_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 20.5,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
         let result = vec![
             format!("'foobar/eaa8c4'=5;;;;"),
@@ -655,10 +674,7 @@ mod tests {
             format!("'foobar/c9308d'=20.5;;;;"),
         ];
 
-        assert_eq!(
-            format_performance_data(&mapping, &metric, &values).unwrap(),
-            result
-        );
+        assert_eq!(format_performance_data(&mapping, &data).unwrap(), result);
     }
 
     #[test]
@@ -681,18 +697,35 @@ mod tests {
                 uom: None,
             },
         };
-        let mut metric1 = HashMap::new();
-        metric1.insert("some_label".to_string(), "some_value".to_string());
-        metric1.insert("another_label".to_string(), "another_value".to_string());
+        let mut data = vec![];
 
-        let mut metric2 = HashMap::new();
-        metric2.insert("foo_label".to_string(), "foo_value".to_string());
-        metric2.insert("bar_label".to_string(), "bar_value".to_string());
+        let mut metric = HashMap::new();
+        metric.insert("some_label".to_string(), "some_value".to_string());
+        metric.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 5.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
-        let metric = vec![&metric1, &metric2];
-        let values = vec![5.0, 15.0];
+        let mut metric = HashMap::new();
+        metric.insert("foo_label".to_string(), "foo_value".to_string());
+        metric.insert("bar_label".to_string(), "bar_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 15.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
-        assert!(format_performance_data(&mapping, &metric, &values).is_err(),);
+        assert!(format_performance_data(&mapping, &data).is_err(),);
     }
 
     #[test]
@@ -715,26 +748,40 @@ mod tests {
                 uom: Some("%".to_string()),
             },
         };
-        let mut metric1 = HashMap::new();
-        metric1.insert("some_label".to_string(), "some_value".to_string());
-        metric1.insert("another_label".to_string(), "another_value".to_string());
+        let mut data = vec![];
 
-        let mut metric2 = HashMap::new();
-        metric2.insert("some_label".to_string(), "foo_value".to_string());
-        metric2.insert("bar_label".to_string(), "bar_value".to_string());
+        let mut metric = HashMap::new();
+        metric.insert("some_label".to_string(), "some_value".to_string());
+        metric.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 5.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
-        let metric = vec![&metric1, &metric2];
-        let values = vec![5.0, 15.0];
+        let mut metric = HashMap::new();
+        metric.insert("some_label".to_string(), "foo_value".to_string());
+        metric.insert("bar_label".to_string(), "bar_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 15.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
         let result = vec![
             format!("'some_value'=5%;;;;"),
             format!("'foo_value'=15%;;;;"),
         ];
 
-        assert_eq!(
-            format_performance_data(&mapping, &metric, &values).unwrap(),
-            result
-        );
+        assert_eq!(format_performance_data(&mapping, &data).unwrap(), result);
     }
 
     #[test]
@@ -757,18 +804,36 @@ mod tests {
                 uom: None,
             },
         };
-        let mut metric1 = HashMap::new();
-        metric1.insert("some_label".to_string(), "some_value".to_string());
-        metric1.insert("another_label".to_string(), "another_value".to_string());
 
-        let mut metric2 = HashMap::new();
-        metric2.insert("some_label".to_string(), "some_value".to_string());
-        metric2.insert("bar_label".to_string(), "bar_value".to_string());
+        let mut data = vec![];
 
-        let metric = vec![&metric1, &metric2];
-        let values = vec![5.0, 15.0];
+        let mut metric = HashMap::new();
+        metric.insert("some_label".to_string(), "some_value".to_string());
+        metric.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 5.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
-        assert!(format_performance_data(&mapping, &metric, &values).is_err(),);
+        let mut metric = HashMap::new();
+        metric.insert("some_label".to_string(), "some_value".to_string());
+        metric.insert("bar_label".to_string(), "bar_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 5.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
+
+        assert!(format_performance_data(&mapping, &data).is_err(),);
     }
 
     #[test]
@@ -787,15 +852,24 @@ mod tests {
             plugin_output: Some("[{{ state }}] Trivial templating test; {{ data.0.metric.some_label }}; every {{ interval }} seconds".to_string()),
             performance_data: PerformanceData::default(),
         };
-        let mut metric1 = HashMap::new();
-        metric1.insert("some_label".to_string(), "some_value".to_string());
-        metric1.insert("another_label".to_string(), "another_value".to_string());
+
+        let mut metric = HashMap::new();
+        metric.insert("some_label".to_string(), "some_value".to_string());
+        metric.insert("another_label".to_string(), "another_value".to_string());
+        let data_item = Data {
+            metric: &metric,
+            value: 5.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
 
         assert_eq!(
             format_from_template(
                 mapping.plugin_output.as_ref().unwrap(),
                 &mapping,
-                vec![(&&metric1, &5.0)],
+                vec![data_item],
                 0
             )
             .unwrap(),
@@ -826,30 +900,50 @@ mod tests {
             ),
             performance_data: PerformanceData::default(),
         };
-        let mut metric1 = HashMap::new();
-        metric1.insert("known_label".to_string(), "foo_value".to_string());
-        metric1.insert("another_label".to_string(), "another_value".to_string());
+        let mut data = vec![];
 
-        let mut metric2 = HashMap::new();
-        metric2.insert("known_label".to_string(), "bar_value".to_string());
-        metric2.insert("another_label".to_string(), "another_value".to_string());
+        let mut metric = HashMap::new();
+        metric.insert("known_label".to_string(), "foo_value".to_string());
+        metric.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 5.0,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
-        let mut metric3 = HashMap::new();
-        metric3.insert("known_label".to_string(), "value".to_string());
-        metric3.insert("another_label".to_string(), "another_value".to_string());
+        let mut metric = HashMap::new();
+        metric.insert("known_label".to_string(), "bar_value".to_string());
+        metric.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 15.0,
+            is_warning: false,
+            is_critical: true,
+            state: "CRITICAL".to_string(),
+            exit_status: 2,
+        };
+        data.push(d);
+
+        let mut metric = HashMap::new();
+        metric.insert("known_label".to_string(), "value".to_string());
+        metric.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            metric: &metric,
+            value: 25.55465123,
+            is_warning: false,
+            is_critical: false,
+            state: "OK".to_string(),
+            exit_status: 0,
+        };
+        data.push(d);
 
         assert_eq!(
-            format_from_template(
-                mapping.plugin_output.as_ref().unwrap(),
-                &mapping,
-                vec![
-                    (&&metric1, &5.0),
-                    (&&metric2, &15.0),
-                    (&&metric3, &25.554654654)
-                ],
-                2
-            )
-            .unwrap(),
+            format_from_template(mapping.plugin_output.as_ref().unwrap(), &mapping, data, 2)
+                .unwrap(),
             "[CRITICAL] Overall bla bla
 foo_value is 5
 bar_value is 15
