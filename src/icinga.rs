@@ -893,7 +893,7 @@ mod tests {
             plugin_output: Some(
                 "[{{ state }}] Overall bla bla
 {{ #each data }}
-{{ this.metric.known_label }} is {{ truncate prec=4 this.value }}
+[{{ this.state }}] {{ this.metric.known_label }} is {{ truncate prec=4 this.value }}
 {{ /each }}
 "
                 .to_string(),
@@ -945,9 +945,9 @@ mod tests {
             format_from_template(mapping.plugin_output.as_ref().unwrap(), &mapping, data, 2)
                 .unwrap(),
             "[CRITICAL] Overall bla bla
-foo_value is 5
-bar_value is 15
-value is 25.5547
+[OK] foo_value is 5
+[CRITICAL] bar_value is 15
+[OK] value is 25.5547
 "
             .to_string()
         );
