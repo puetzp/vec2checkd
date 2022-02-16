@@ -91,6 +91,7 @@ pub(crate) async fn execute_task(
                 Data {
                     labels: ts.metric(),
                     value: value,
+                    is_ok: exit_status == 0,
                     is_warning: exit_status == 1,
                     is_critical: exit_status == 2,
                     exit_status: exit_status,

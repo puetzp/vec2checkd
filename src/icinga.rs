@@ -635,6 +635,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -648,6 +649,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 15.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -661,6 +663,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 20.5,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -705,6 +708,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -718,6 +722,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 15.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -756,6 +761,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -769,6 +775,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 15.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -813,6 +820,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -826,6 +834,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -859,6 +868,7 @@ mod tests {
         let data_item = Data {
             labels: &labels,
             value: 5.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -908,6 +918,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),
@@ -921,6 +932,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 15.0,
+            is_ok: true,
             is_warning: false,
             is_critical: true,
             state: "CRITICAL".to_string(),
@@ -934,6 +946,7 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 25.55465123,
+            is_ok: true,
             is_warning: false,
             is_critical: false,
             state: "OK".to_string(),

@@ -75,6 +75,9 @@ pub(crate) struct PluginOutputRenderContext<'a> {
     pub data: &'a [Data<'a>],
     pub exit_status: &'a u8,
     pub state: &'a str,
+    pub is_ok: bool,
+    pub is_warning: bool,
+    pub is_critical: bool,
 }
 
 impl<'a> PluginOutputRenderContext<'a> {
@@ -94,6 +97,9 @@ impl<'a> PluginOutputRenderContext<'a> {
             data: data,
             exit_status: &exit_status,
             state: &state,
+            is_ok: *exit_status == 0,
+            is_warning: *exit_status == 1,
+            is_critical: *exit_status == 2,
         }
     }
 }
@@ -102,6 +108,7 @@ impl<'a> PluginOutputRenderContext<'a> {
 pub(crate) struct Data<'a> {
     pub labels: &'a HashMap<String, String>,
     pub value: f64,
+    pub is_ok: bool,
     pub is_warning: bool,
     pub is_critical: bool,
     pub state: String,
