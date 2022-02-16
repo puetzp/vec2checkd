@@ -123,7 +123,7 @@ The second mapping will only be applied every 300 seconds. The warning and criti
 'requests'=130.54098;@0:200;@0:100;;
 ```
 
-There is a little more going on here, so check the [documentation](doc/configuration.md) about details on the placeholders in the plugin_output field, the thresholds, the performance_data object etc.
+There is a little more going on here, among other things the use of [handlebars templates](https://handlebarsjs.com/) in the customized plugin output. So check the [documentation](doc/configuration.md) for details on the use of the templating language, thresholds, customizing performance data etc.
 
 ## Limitations
 
