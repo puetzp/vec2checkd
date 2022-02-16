@@ -389,7 +389,7 @@ pub(crate) fn format_performance_data<'a>(
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
 
         for item in data.iter() {
-            let context = PerformanceDataRenderContext::from(mapping, &item.metric);
+            let context = PerformanceDataRenderContext::from(mapping, &item.labels);
             let label = handlebars
                 .render_template(template, &context)
                 .with_context(|| "failed to render performance data from handlebars template using the given context")?;
@@ -403,7 +403,7 @@ pub(crate) fn format_performance_data<'a>(
         // in unique (and stable across queries) performance data labels.
         for item in data.iter() {
             let checksum = {
-                let ordered_metric = BTreeMap::from_iter(item.metric.iter());
+                let ordered_metric = BTreeMap::from_iter(item.labels.iter());
                 let metric_str = ordered_metric
                     .iter()
                     .fold(String::new(), |mut acc, metric| {
@@ -629,11 +629,11 @@ mod tests {
         };
         let mut data = vec![];
 
-        let mut metric = HashMap::new();
-        metric.insert("some_label".to_string(), "some_value".to_string());
-        metric.insert("another_label".to_string(), "another_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("some_label".to_string(), "some_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 5.0,
             is_warning: false,
             is_critical: false,
@@ -642,11 +642,11 @@ mod tests {
         };
         data.push(d);
 
-        let mut metric = HashMap::new();
-        metric.insert("foo_label".to_string(), "foo_value".to_string());
-        metric.insert("bar_label".to_string(), "bar_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("foo_label".to_string(), "foo_value".to_string());
+        labels.insert("bar_label".to_string(), "bar_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 15.0,
             is_warning: false,
             is_critical: false,
@@ -655,11 +655,11 @@ mod tests {
         };
         data.push(d);
 
-        let mut metric = HashMap::new();
-        metric.insert("test_label".to_string(), "test_value".to_string());
-        metric.insert("z_label".to_string(), "z_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("test_label".to_string(), "test_value".to_string());
+        labels.insert("z_label".to_string(), "z_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 20.5,
             is_warning: false,
             is_critical: false,
@@ -699,11 +699,11 @@ mod tests {
         };
         let mut data = vec![];
 
-        let mut metric = HashMap::new();
-        metric.insert("some_label".to_string(), "some_value".to_string());
-        metric.insert("another_label".to_string(), "another_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("some_label".to_string(), "some_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 5.0,
             is_warning: false,
             is_critical: false,
@@ -712,11 +712,11 @@ mod tests {
         };
         data.push(d);
 
-        let mut metric = HashMap::new();
-        metric.insert("foo_label".to_string(), "foo_value".to_string());
-        metric.insert("bar_label".to_string(), "bar_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("foo_label".to_string(), "foo_value".to_string());
+        labels.insert("bar_label".to_string(), "bar_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 15.0,
             is_warning: false,
             is_critical: false,
@@ -744,17 +744,17 @@ mod tests {
             plugin_output: None,
             performance_data: PerformanceData {
                 enabled: true,
-                label: Some("{{ metric.some_label }}".to_string()),
+                label: Some("{{ labels.some_label }}".to_string()),
                 uom: Some("%".to_string()),
             },
         };
         let mut data = vec![];
 
-        let mut metric = HashMap::new();
-        metric.insert("some_label".to_string(), "some_value".to_string());
-        metric.insert("another_label".to_string(), "another_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("some_label".to_string(), "some_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 5.0,
             is_warning: false,
             is_critical: false,
@@ -763,11 +763,11 @@ mod tests {
         };
         data.push(d);
 
-        let mut metric = HashMap::new();
-        metric.insert("some_label".to_string(), "foo_value".to_string());
-        metric.insert("bar_label".to_string(), "bar_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("some_label".to_string(), "foo_value".to_string());
+        labels.insert("bar_label".to_string(), "bar_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 15.0,
             is_warning: false,
             is_critical: false,
@@ -800,18 +800,18 @@ mod tests {
             plugin_output: None,
             performance_data: PerformanceData {
                 enabled: true,
-                label: Some("{{ metric.some_label }}".to_string()),
+                label: Some("{{ labels.some_label }}".to_string()),
                 uom: None,
             },
         };
 
         let mut data = vec![];
 
-        let mut metric = HashMap::new();
-        metric.insert("some_label".to_string(), "some_value".to_string());
-        metric.insert("another_label".to_string(), "another_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("some_label".to_string(), "some_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 5.0,
             is_warning: false,
             is_critical: false,
@@ -820,11 +820,11 @@ mod tests {
         };
         data.push(d);
 
-        let mut metric = HashMap::new();
-        metric.insert("some_label".to_string(), "some_value".to_string());
-        metric.insert("bar_label".to_string(), "bar_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("some_label".to_string(), "some_value".to_string());
+        labels.insert("bar_label".to_string(), "bar_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 5.0,
             is_warning: false,
             is_critical: false,
@@ -849,15 +849,15 @@ mod tests {
             service: Some("bar".to_string()),
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
-            plugin_output: Some("[{{ state }}] Trivial templating test; {{ data.0.metric.some_label }}; every {{ interval }} seconds".to_string()),
+            plugin_output: Some("[{{ state }}] Trivial templating test; {{ data.0.labels.some_label }}; every {{ interval }} seconds".to_string()),
             performance_data: PerformanceData::default(),
         };
 
-        let mut metric = HashMap::new();
-        metric.insert("some_label".to_string(), "some_value".to_string());
-        metric.insert("another_label".to_string(), "another_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("some_label".to_string(), "some_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
         let data_item = Data {
-            metric: &metric,
+            labels: &labels,
             value: 5.0,
             is_warning: false,
             is_critical: false,
@@ -893,7 +893,7 @@ mod tests {
             plugin_output: Some(
                 "[{{ state }}] Overall bla bla
 {{ #each data }}
-[{{ this.state }}] {{ this.metric.known_label }} is {{ truncate prec=4 this.value }}
+[{{ this.state }}] {{ this.labels.known_label }} is {{ truncate prec=4 this.value }}
 {{ /each }}
 "
                 .to_string(),
@@ -902,11 +902,11 @@ mod tests {
         };
         let mut data = vec![];
 
-        let mut metric = HashMap::new();
-        metric.insert("known_label".to_string(), "foo_value".to_string());
-        metric.insert("another_label".to_string(), "another_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("known_label".to_string(), "foo_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 5.0,
             is_warning: false,
             is_critical: false,
@@ -915,11 +915,11 @@ mod tests {
         };
         data.push(d);
 
-        let mut metric = HashMap::new();
-        metric.insert("known_label".to_string(), "bar_value".to_string());
-        metric.insert("another_label".to_string(), "another_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("known_label".to_string(), "bar_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 15.0,
             is_warning: false,
             is_critical: true,
@@ -928,11 +928,11 @@ mod tests {
         };
         data.push(d);
 
-        let mut metric = HashMap::new();
-        metric.insert("known_label".to_string(), "value".to_string());
-        metric.insert("another_label".to_string(), "another_value".to_string());
+        let mut labels = HashMap::new();
+        labels.insert("known_label".to_string(), "value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
         let d = Data {
-            metric: &metric,
+            labels: &labels,
             value: 25.55465123,
             is_warning: false,
             is_critical: false,

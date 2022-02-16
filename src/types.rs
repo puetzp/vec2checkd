@@ -50,7 +50,7 @@ pub(crate) struct PerformanceDataRenderContext<'a> {
     pub name: &'a str,
     pub host: &'a str,
     pub service: &'a Option<String>,
-    pub metric: &'a HashMap<String, String>,
+    pub labels: &'a HashMap<String, String>,
 }
 
 impl<'a> PerformanceDataRenderContext<'a> {
@@ -59,7 +59,7 @@ impl<'a> PerformanceDataRenderContext<'a> {
             name: &mapping.name,
             host: &mapping.host,
             service: &mapping.service,
-            metric: &metric,
+            labels: &metric,
         }
     }
 }
@@ -100,7 +100,7 @@ impl<'a> PluginOutputRenderContext<'a> {
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct Data<'a> {
-    pub metric: &'a HashMap<String, String>,
+    pub labels: &'a HashMap<String, String>,
     pub value: f64,
     pub is_warning: bool,
     pub is_critical: bool,

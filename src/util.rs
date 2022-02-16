@@ -89,7 +89,7 @@ pub(crate) async fn execute_task(
                 let exit_status = icinga::check_thresholds(&mapping.thresholds, value);
                 let state = icinga::exit_status_to_state(mapping.service.as_ref(), &exit_status);
                 Data {
-                    metric: ts.metric(),
+                    labels: ts.metric(),
                     value: value,
                     is_warning: exit_status == 1,
                     is_critical: exit_status == 2,
