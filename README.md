@@ -74,13 +74,13 @@ As per the defaults that come into play here, this mapping will execute the Prom
 
 ```
 # plugin output
-[OK] 'Failed ingress requests' is 34.43
+[OK] PromQL query returned one result (34.44)
 
 # performance data
-'Failed ingress requests'=34.4393348197696023;;;;
+'Failed ingress requests/2a4e86'=34.4393348197696023;;;;
 ```
 
-Now extend the configuration with another example mapping that builts on the existing one.
+Now we extend the configuration with another example mapping that is similar to the one above but leverages more optional parameters.
 
 ```yaml
 prometheus: {}
@@ -105,7 +105,7 @@ mappings:
     thresholds:
       warning: '@200'
       critical: '@100'
-    plugin_output: '[$state] Nginx ingress controller processes $value requests per second (HTTP 2xx)'
+    plugin_output: '[{{ state }}] Nginx ingress controller processes {{ truncate prec=2 data.0.value }} requests per second (HTTP 2xx)'
     performance_data:
       enabled: true
       label: 'requests'
@@ -113,14 +113,14 @@ mappings:
   ...
 ```
 
-The second mapping will only be applied every 300 seconds. The warning and critical thresholds are also considered before the final check result is sent to Icinga2. Given the PromQL query evaluates to a value of "130.0", vec2checkd sends status 1 (WARNING) and the following plugin output and performance data to the API.
+The second mapping will only be applied every 300 seconds. The warning and critical thresholds are also considered before the final check result is sent to Icinga2. When the PromQL query evaluates to a value of "130.54098", vec2checkd sends status 1 (WARNING) and the following plugin output and performance data to the API.
 
 ```
 # plugin output
-[WARNING] Nginx ingress controller processes 130 requests per second (HTTP 2xx)
+[WARNING] Nginx ingress controller processes 130.54 requests per second (HTTP 2xx)
 
 # performance data
-'requests'=130.0;@0:200;@0:100;;
+'requests'=130.54098;@0:200;@0:100;;
 ```
 
 There is a little more going on here, so check the [documentation](doc/configuration.md) about details on the placeholders in the plugin_output field, the thresholds, the performance_data object etc.
@@ -129,12 +129,10 @@ There is a little more going on here, so check the [documentation](doc/configura
 
 * In contrast to [signalilo](https://github.com/vshn/signalilo) vec2checkd is intended to interact with pre-defined host and service objects in Icinga2 and update those objects regularly. So **host and service objects are not created/deleted or managed in any way by vec2checkd** because Icinga2 provides excellent tools to create any type of object even in bulk, e.g. by using the [Director](https://github.com/Icinga/icingaweb2-module-director).
 Providing a means to create objects would necessitate to re-create most of the logic that the Director already provides.
-* At this point only the first item of a PromQL result vector is processed further and the result ultimately sent to Icinga2. So (for now) make sure that your PromQL query yields exactly one vector. *This might change in future versions*
 * Only the PromQL result type "vector" is interpreted. *This might change in future versions*
 
 ## ToDos
 
 * Extend the Prometheus configuration object with authentication options (as the server may be shielded by a reverse proxy).
 * Extend the Prometheus and Icinga configuration objects with custom proxy options (setting HTTPS_PROXY and HTTP_PROXY in the environment would cause *both* clients to connect to Prometheus/Icinga2 via this proxy).
-* Provide a means to process multiple result vectors when the PromQL query result type is "vector".
 * Also provide a means to interpret a PromQL query result of type "matrix".
