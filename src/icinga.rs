@@ -1,3 +1,4 @@
+use crate::helpers;
 use crate::types::*;
 use crate::util;
 use anyhow::{bail, Context};
@@ -6,6 +7,7 @@ use log::debug;
 use md5::{Digest, Md5};
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
+use std::boxed::Box;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
@@ -216,6 +218,7 @@ pub mod plugin_output {
         let state = exit_status_to_state(mapping.service.as_ref(), &exit_status);
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
+        handlebars.register_helper("truncate", Box::new(helpers::truncate));
         let context = PluginOutputRenderContext::from(&mapping, data, &exit_status, &state);
         let plugin_output = handlebars
             .render_template(template, &context)
@@ -384,6 +387,7 @@ pub(crate) fn format_performance_data(
     if let Some(ref template) = mapping.performance_data.label {
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
+        handlebars.register_helper("truncate", Box::new(helpers::truncate));
 
         for item in values.iter().enumerate() {
             let context = PerformanceDataRenderContext::from(mapping, metric[item.0]);
@@ -815,7 +819,7 @@ mod tests {
             plugin_output: Some(
                 "[{{ state }}] Overall bla bla
 {{ #each data }}
-{{ this.metric.known_label }} is {{ this.value }}
+{{ this.metric.known_label }} is {{ truncate prec=4 this.value }}
 {{ /each }}
 "
                 .to_string(),
@@ -838,14 +842,18 @@ mod tests {
             format_from_template(
                 mapping.plugin_output.as_ref().unwrap(),
                 &mapping,
-                vec![(&&metric1, &5.0), (&&metric2, &15.0), (&&metric3, &25.5)],
+                vec![
+                    (&&metric1, &5.0),
+                    (&&metric2, &15.0),
+                    (&&metric3, &25.554654654)
+                ],
                 2
             )
             .unwrap(),
             "[CRITICAL] Overall bla bla
 foo_value is 5
 bar_value is 15
-value is 25.5
+value is 25.5547
 "
             .to_string()
         );
