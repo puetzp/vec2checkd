@@ -39,7 +39,7 @@ $ ln -s -T /lib/systemd/system/vec2checkd@.service /etc/systemd/system/vec2check
 $ systemctl enable /etc/systemd/system/vec2checkd@<instance_name>.service
 ```
 
-Each instance reads its configuration from `/etc/vec2checkd/conf.d/<instance_name>.yaml`. Though a custom location may be provided by overriding the settings in the unit file (the flag `--config` specifically). The expected content of each configuration is described [here](doc/configuration.md).
+Each instance reads its configuration from `/etc/vec2checkd/conf.d/<instance_name>.yaml`. Though a custom location may be provided by overriding the settings in the unit file (the flag `--config` specifically). The overall structure of the content of each instance's configuration is described [here](doc/configuration.md).
 
 For simple use-cases a single instance of vec2checkd will suffice of course. The instantation of multiple daemons may help in some cases however, e.g. when:
 
