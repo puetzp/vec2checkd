@@ -128,9 +128,9 @@ mappings:
 
 Some of these parameters may need to be explained further:
 
-* On valid _Nagios ranges_ see [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT) or [Icinga2 documentation](https://icinga.com/docs/icinga-2/latest/doc/05-service-monitoring/#threshold-ranges)
-* On _plugin output_ and customization see [this file](plugin_output.md)
-* On _performance data_ and customization_ see [this file](performance_data.md)
+* On valid **Nagios ranges** see [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT) or [Icinga2 documentation](https://icinga.com/docs/icinga-2/latest/doc/05-service-monitoring/#threshold-ranges)
+* On **plugin output** and customization see [this document](plugin_output.md)
+* On **performance data** and customization see [this document](performance_data.md)
 
 #### Details on plugin output
 
