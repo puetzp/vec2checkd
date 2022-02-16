@@ -1,5 +1,6 @@
 mod config;
 mod error;
+mod helpers;
 mod icinga;
 mod types;
 mod util;
