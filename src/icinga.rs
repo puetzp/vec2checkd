@@ -140,7 +140,7 @@ impl Default for IcingaClient {
 pub(crate) struct IcingaPayload {
     #[serde(rename = "type")]
     obj_type: String,
-    exit_value: u8,
+    exit_status: u8,
     plugin_output: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     performance_data: Option<Vec<String>>,
@@ -194,7 +194,7 @@ pub(crate) fn build_payload(
         obj_type,
         filter,
         ttl,
-        exit_value,
+        exit_status: exit_value,
         plugin_output,
         performance_data,
         filter_vars,
