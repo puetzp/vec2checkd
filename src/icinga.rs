@@ -225,6 +225,7 @@ pub mod plugin_output {
             .with_context(|| {
                 "failed to render plugin output from handlebars template using the given context"
             })?;
+        debug!("{:?}", plugin_output);
 
         Ok(plugin_output)
     }
@@ -330,14 +331,18 @@ pub mod plugin_output {
 
 /// The basic Nagios stuff. Check if at least one value lies in the warning/critical
 /// range while the critical range takes precedence over the warning range.
-pub(crate) fn check_thresholds(thresholds: &ThresholdPair, value: f64) -> u8 {
-    if let Some(critical) = &thresholds.critical {
+pub(crate) fn check_thresholds(mapping: &Mapping, value: f64) -> u8 {
+    if let Some(critical) = mapping.thresholds.critical {
         if critical.check(value) {
-            return 2;
+            if mapping.service.is_some() {
+                return 2;
+            } else {
+                return 1;
+            }
         }
     }
 
-    if let Some(warning) = &thresholds.warning {
+    if let Some(warning) = mapping.thresholds.warning {
         if warning.check(value) {
             return 1;
         }
@@ -350,10 +355,34 @@ pub(crate) fn check_thresholds(thresholds: &ThresholdPair, value: f64) -> u8 {
 /// state. The state differs for host and service objects.
 pub(crate) fn exit_value_to_status(service: Option<&String>, exit_value: &u8) -> String {
     match exit_value {
-        3 => "UNKNOWN".to_string(),
-        2 => service.map_or("DOWN", |_| "CRITICAL").to_string(),
-        1 => service.map_or("UP", |_| "WARNING").to_string(),
-        0 => service.map_or("UP", |_| "OK").to_string(),
+        3 => {
+            if service.is_some() {
+                "UNKNOWN".to_string()
+            } else {
+                "DOWN".to_string()
+            }
+        }
+        2 => {
+            if service.is_some() {
+                "CRITICAL".to_string()
+            } else {
+                "DOWN".to_string()
+            }
+        }
+        1 => {
+            if service.is_some() {
+                "WARNING".to_string()
+            } else {
+                "DOWN".to_string()
+            }
+        }
+        0 => {
+            if service.is_some() {
+                "OK".to_string()
+            } else {
+                "UP".to_string()
+            }
+        }
         _ => unreachable!(),
     }
 }

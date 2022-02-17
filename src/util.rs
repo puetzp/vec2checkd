@@ -82,21 +82,13 @@ pub(crate) async fn execute_task(
             let performance_data = None;
             (plugin_output, overall_exit_value, performance_data)
         } else {
-            let data: Vec<Data> = instant_vector.iter().map(|ts| {
+            let data: Vec<Data> = instant_vector.into_iter().map(|ts| {
                 // Discard the timestamp that is also part of a sample.
                 let value = ts.sample().value();
                 // Compute the exit status per time series, i.e. if the value breaches any thresholds.
-                let exit_value = icinga::check_thresholds(&mapping.thresholds, value);
+                let exit_value = icinga::check_thresholds(&mapping, value);
                 let exit_status = icinga::exit_value_to_status(mapping.service.as_ref(), &exit_value);
-                Data {
-                    labels: ts.metric(),
-                    value: value,
-                    is_ok: exit_value == 0,
-                    is_warning: exit_value == 1,
-                    is_critical: exit_value == 2,
-                    exit_value: exit_value,
-                    exit_status: exit_status,
-                }
+                Data::from(&mapping, ts, value, exit_value, exit_status)
             }).collect();
 
             let overall_exit_value = data.iter().max_by(|x, y| x.exit_value.cmp(&y.exit_value)).unwrap().exit_value;
