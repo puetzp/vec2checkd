@@ -73,8 +73,8 @@ pub(crate) struct PluginOutputRenderContext<'a> {
     pub service: &'a Option<String>,
     pub interval: u64,
     pub data: &'a [Data<'a>],
-    pub exit_status: &'a u8,
-    pub state: &'a str,
+    pub exit_value: &'a u8,
+    pub exit_status: &'a str,
     pub is_ok: bool,
     pub is_warning: bool,
     pub is_critical: bool,
@@ -84,8 +84,8 @@ impl<'a> PluginOutputRenderContext<'a> {
     pub(crate) fn from(
         mapping: &'a Mapping,
         data: &'a [Data<'a>],
-        exit_status: &'a u8,
-        state: &'a str,
+        exit_value: &'a u8,
+        exit_status: &'a str,
     ) -> Self {
         PluginOutputRenderContext {
             name: &mapping.name,
@@ -95,11 +95,11 @@ impl<'a> PluginOutputRenderContext<'a> {
             service: &mapping.service,
             interval: mapping.interval.as_secs(),
             data: data,
+            exit_value: &exit_value,
             exit_status: &exit_status,
-            state: &state,
-            is_ok: *exit_status == 0,
-            is_warning: *exit_status == 1,
-            is_critical: *exit_status == 2,
+            is_ok: *exit_value == 0,
+            is_warning: *exit_value == 1,
+            is_critical: *exit_value == 2,
         }
     }
 }
@@ -111,8 +111,8 @@ pub(crate) struct Data<'a> {
     pub is_ok: bool,
     pub is_warning: bool,
     pub is_critical: bool,
-    pub state: String,
-    pub exit_status: u8,
+    pub exit_status: String,
+    pub exit_value: u8,
 }
 
 pub(crate) struct PromConfig {

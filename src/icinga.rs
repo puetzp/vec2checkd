@@ -140,7 +140,7 @@ impl Default for IcingaClient {
 pub(crate) struct IcingaPayload {
     #[serde(rename = "type")]
     obj_type: String,
-    exit_status: u8,
+    exit_value: u8,
     plugin_output: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     performance_data: Option<Vec<String>>,
@@ -155,7 +155,7 @@ pub(crate) struct IcingaPayload {
 /// the body of the Icinga API request from it.
 pub(crate) fn build_payload(
     mapping: &Mapping,
-    exit_status: u8,
+    exit_value: u8,
     plugin_output: String,
     performance_data: Option<Vec<String>>,
     execution_start: u64,
@@ -194,7 +194,7 @@ pub(crate) fn build_payload(
         obj_type,
         filter,
         ttl,
-        exit_status,
+        exit_value,
         plugin_output,
         performance_data,
         filter_vars,
@@ -213,13 +213,13 @@ pub mod plugin_output {
         template: &str,
         mapping: &Mapping,
         data: Vec<Data<'a>>,
-        exit_status: u8,
+        exit_value: u8,
     ) -> Result<String, anyhow::Error> {
-        let state = exit_status_to_state(mapping.service.as_ref(), &exit_status);
+        let exit_status = exit_value_to_status(mapping.service.as_ref(), &exit_value);
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
-        let context = PluginOutputRenderContext::from(&mapping, &data, &exit_status, &state);
+        let context = PluginOutputRenderContext::from(&mapping, &data, &exit_value, &exit_status);
         let plugin_output = handlebars
             .render_template(template, &context)
             .with_context(|| {
@@ -244,18 +244,18 @@ pub mod plugin_output {
     pub(crate) fn format_default_single_item(
         mapping: &Mapping,
         value: f64,
-        exit_status: u8,
+        exit_value: u8,
     ) -> String {
         let value = util::truncate_to_string(value);
-        let state = exit_status_to_state(mapping.service.as_ref(), &exit_status);
-        match exit_status {
+        let exit_status = exit_value_to_status(mapping.service.as_ref(), &exit_value);
+        match exit_value {
             2 => {
                 // Can be unwrapped safely as exit status 2 is only possible when a
                 // critical threshold was given.
                 let crit_range = mapping.thresholds.critical.as_ref().unwrap().to_string();
                 format!(
                     "[{}] PromQL query returned one result within the critical range ({} in {})",
-                    state, value, crit_range
+                    exit_status, value, crit_range
                 )
             }
             1 => {
@@ -264,11 +264,14 @@ pub mod plugin_output {
                 let warn_range = mapping.thresholds.warning.as_ref().unwrap().to_string();
                 format!(
                     "[{}] PromQL query returned one result within the warning range ({} in {})",
-                    state, value, warn_range
+                    exit_status, value, warn_range
                 )
             }
             0 => {
-                format!("[{}] PromQL query returned one result ({})", state, value)
+                format!(
+                    "[{}] PromQL query returned one result ({})",
+                    exit_status, value
+                )
             }
             // Exit status "3"/"UNKNOWN" can be ignored safely as it has been handled
             // prior to the call to this function.
@@ -284,38 +287,38 @@ pub mod plugin_output {
     pub(crate) fn format_default_multiple_items(
         mapping: &Mapping,
         values: &[&f64],
-        exit_status: u8,
+        exit_value: u8,
     ) -> String {
         //        let value = util::truncate_to_string(value);
         let min_value = values.iter().map(|v| **v).reduce(f64::min).unwrap();
         let max_value = values.iter().map(|v| **v).reduce(f64::max).unwrap();
         let value_range = min_value..=max_value;
-        match exit_status {
+        match exit_value {
             2 => {
                 // Can be unwrapped safely as exit status 2 is only possible when a
                 // critical threshold was given.
                 let crit_range = mapping.thresholds.critical.as_ref().unwrap().to_string();
-                let state = mapping.service.as_ref().map_or("DOWN", |_| "CRITICAL");
+                let status = mapping.service.as_ref().map_or("DOWN", |_| "CRITICAL");
                 format!(
                     "[{}] PromQL query returned multiple results within the critical range (values {:?} overlap with {})",
-                    state, value_range, crit_range
+                    status, value_range, crit_range
                 )
             }
             1 => {
                 // Can be unwrapped safely as exit status 1 is only possible when a
                 // warning threshold was given.
                 let warn_range = mapping.thresholds.warning.as_ref().unwrap().to_string();
-                let state = mapping.service.as_ref().map_or("UP", |_| "WARNING");
+                let status = mapping.service.as_ref().map_or("UP", |_| "WARNING");
                 format!(
                     "[{}] PromQL query returned multiple results within the warning range (values {:?} overlap with {})",
-                    state, value_range, warn_range
+                    status, value_range, warn_range
                 )
             }
             0 => {
-                let state = mapping.service.as_ref().map_or("UP", |_| "OK");
+                let status = mapping.service.as_ref().map_or("UP", |_| "OK");
                 format!(
                     "[{}] PromQL query returned multiple results in the range {:?}",
-                    state, value_range
+                    status, value_range
                 )
             }
             // Exit status "3"/"UNKNOWN" can be ignored safely as it has been handled
@@ -345,8 +348,8 @@ pub(crate) fn check_thresholds(thresholds: &ThresholdPair, value: f64) -> u8 {
 
 /// Also basic Nagios stuff. A particular exit status is associated with a given
 /// state. The state differs for host and service objects.
-pub(crate) fn exit_status_to_state(service: Option<&String>, exit_status: &u8) -> String {
-    match exit_status {
+pub(crate) fn exit_value_to_status(service: Option<&String>, exit_value: &u8) -> String {
+    match exit_value {
         3 => "UNKNOWN".to_string(),
         2 => service.map_or("DOWN", |_| "CRITICAL").to_string(),
         1 => service.map_or("UP", |_| "WARNING").to_string(),
@@ -638,8 +641,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -652,8 +655,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -666,8 +669,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -711,8 +714,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -725,8 +728,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -764,8 +767,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -778,8 +781,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -823,8 +826,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -837,8 +840,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -858,7 +861,7 @@ mod tests {
             service: Some("bar".to_string()),
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
-            plugin_output: Some("[{{ state }}] Trivial templating test; {{ data.0.labels.some_label }}; every {{ interval }} seconds".to_string()),
+            plugin_output: Some("[{{ exit_status }}] Trivial templating test; {{ data.0.labels.some_label }}; every {{ interval }} seconds".to_string()),
             performance_data: PerformanceData::default(),
         };
 
@@ -871,8 +874,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
 
         assert_eq!(
@@ -901,9 +904,9 @@ mod tests {
             interval: Duration::from_secs(60),
             last_apply: Instant::now(),
             plugin_output: Some(
-                "[{{ state }}] Overall bla bla
+                "[{{ exit_status }}] Overall bla bla
 {{ #each data }}
-[{{ this.state }}] {{ this.labels.known_label }} is {{ truncate prec=4 this.value }}
+[{{ this.exit_status }}] {{ this.labels.known_label }} is {{ truncate prec=4 this.value }}
 {{ /each }}
 "
                 .to_string(),
@@ -921,8 +924,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 
@@ -935,8 +938,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: true,
-            state: "CRITICAL".to_string(),
-            exit_status: 2,
+            exit_status: "CRITICAL".to_string(),
+            exit_value: 2,
         };
         data.push(d);
 
@@ -949,8 +952,8 @@ mod tests {
             is_ok: true,
             is_warning: false,
             is_critical: false,
-            state: "OK".to_string(),
-            exit_status: 0,
+            exit_status: "OK".to_string(),
+            exit_value: 0,
         };
         data.push(d);
 

@@ -45,7 +45,7 @@ The default output above is only useful to display the results of trivial PromQL
 For that reason it is also possible to provide a [handlebars template](https://handlebarsjs.com/) in the configuration (see [the document that describes the YAML structure](configuration.md). vec2checkd then uses this template and a specific context to render the plugin output.
 The _context_ in this case is a single object that contains all the information that accumulated from the evaluation of a PromQL query that you may want to include in the output:
 
-```json
+```
 {
   # the name of the mapping
   name: "Node status",

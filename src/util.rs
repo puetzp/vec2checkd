@@ -75,31 +75,31 @@ pub(crate) async fn execute_task(
         // Return a default plugin output and state UNKNOWN (3) when the query result is empty.
         // Also do not return performance data in this case.
         // Else process the non-empty query result.
-        let (plugin_output, exit_status, performance_data) = if instant_vector.is_empty() {
+        let (plugin_output, overall_exit_value, performance_data) = if instant_vector.is_empty() {
             warn!("'{}': PromQL query result is empty, default to 'UNKNOWN|DOWN' status (exit code '3')", mapping.name);
             let plugin_output = icinga::plugin_output::format_default_without_result();
-            let exit_status = 3;
+            let overall_exit_value = 3;
             let performance_data = None;
-            (plugin_output, exit_status, performance_data)
+            (plugin_output, overall_exit_value, performance_data)
         } else {
             let data: Vec<Data> = instant_vector.iter().map(|ts| {
                 // Discard the timestamp that is also part of a sample.
                 let value = ts.sample().value();
                 // Compute the exit status per time series, i.e. if the value breaches any thresholds.
-                let exit_status = icinga::check_thresholds(&mapping.thresholds, value);
-                let state = icinga::exit_status_to_state(mapping.service.as_ref(), &exit_status);
+                let exit_value = icinga::check_thresholds(&mapping.thresholds, value);
+                let exit_status = icinga::exit_value_to_status(mapping.service.as_ref(), &exit_value);
                 Data {
                     labels: ts.metric(),
                     value: value,
-                    is_ok: exit_status == 0,
-                    is_warning: exit_status == 1,
-                    is_critical: exit_status == 2,
+                    is_ok: exit_value == 0,
+                    is_warning: exit_value == 1,
+                    is_critical: exit_value == 2,
+                    exit_value: exit_value,
                     exit_status: exit_status,
-                    state: state,
                 }
             }).collect();
 
-            let overall_exit_status = data.iter().max_by(|x, y| x.exit_status.cmp(&y.exit_status)).unwrap().exit_status;
+            let overall_exit_value = data.iter().max_by(|x, y| x.exit_value.cmp(&y.exit_value)).unwrap().exit_value;
 
             let performance_data = if mapping.performance_data.enabled {
                 Some(icinga::format_performance_data(&mapping, &data)?)
@@ -109,20 +109,20 @@ pub(crate) async fn execute_task(
 
             let plugin_output = if let Some(ref template) = mapping.plugin_output {
                 debug!("'{}': Build the plugin output from the following handlebars template: {}", mapping.name, template);
-                icinga::plugin_output::format_from_template(&template, &mapping, data, overall_exit_status)?
+                icinga::plugin_output::format_from_template(&template, &mapping, data, overall_exit_value)?
             } else {
                 let item_count = data.len();
                 if item_count == 1 {
                     debug!("'{}': Build default plugin output from the one and only item in the PromQL query result set", mapping.name);
                     let value = data.first().unwrap().value;
-                    icinga::plugin_output::format_default_single_item(&mapping, value, overall_exit_status)
+                    icinga::plugin_output::format_default_single_item(&mapping, value, overall_exit_value)
                 } else {
                     debug!("'{}': Build default plugin output from {} items in the PromQL query result set", mapping.name, item_count);
                     let values: Vec<&f64> = data.iter().map(|d| &d.value).collect();
-                    icinga::plugin_output::format_default_multiple_items(&mapping, &values, overall_exit_status)
+                    icinga::plugin_output::format_default_multiple_items(&mapping, &values, overall_exit_value)
                 }
             };
-            (plugin_output, overall_exit_status, performance_data)
+            (plugin_output, overall_exit_value, performance_data)
         };
 
         let exec_end = get_unix_timestamp().with_context(|| {
@@ -131,7 +131,7 @@ pub(crate) async fn execute_task(
 
         let payload = icinga::build_payload(
             &mapping,
-            exit_status,
+            overall_exit_value,
             plugin_output,
             performance_data,
             exec_start,
