@@ -47,33 +47,26 @@ The _context_ in this case is a single object that contains all the information 
 
 ```
 {
-  # the name of the mapping
   name: "Node status",
-  # the PromQL query defined in the mapping
   query: "kube_node_status_condition{cluster="test",condition!="Ready",status="true"}",
-  # the thresholds from the mapping
   thresholds: {
     warning: "@0:100",
     critical: "@101:"
   },
-  # Icinga host object
   host: "Kubernetes Production",
-  # Icinga service object
   service: "Node status",
-  # check interval
   interval: 60,
-  # overall "plugin" exit code
+
+  # overall "plugin" status and helper variables
   exit_value: 0,
-  # overall "plugin" exit status
   exit_status: "OK",
-  # some helpers regarding the overall "plugin" status
   is_ok: true,
   is_warning: false,
   is_critical: false,
+
   # All data points, i.e. time series returned by the query, further enriched with some evaluation data
   data: [
     {
-      # Labels in this time series
       labels: {
         __name__: "kube_node_status_condition",
 	job: "kubernetes-service-endpoints",
@@ -82,9 +75,9 @@ The _context_ in this case is a single object that contains all the information 
 	exported_node: "worker1",
 	...
       },
-      # Float value from query result
       value: 0.0,
-      # The per-time-series results from checking the value against the thresholds
+
+      # per-time-series results from checking the value against the thresholds
       exit_value: 0,
       exit_status: "OK",
       is_ok: true,
