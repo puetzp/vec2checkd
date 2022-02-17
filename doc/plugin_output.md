@@ -1,8 +1,12 @@
 # Details on the plugin output
 
+## Default output
+
 Specifying a value for the plugin output in a mapping is optional. When no value is provided different default outputs are sent to the Icinga API, depending on the overall exit status of the check, whether the passive check result updates an Icinga host or service object and the number of result vectors returned by the PromQL query.
 
-Case #1: Update a service, PromQL query returned a single item.
+**Defaults for Icinga services**
+
+Case #1: PromQL query returned a single item.
 
 exit status | plugin output | example
 --- | --- | ---
@@ -11,7 +15,7 @@ exit status | plugin output | example
 2 | [CRITICAL] PromQL query returned one result within the critical range  (\<value\> in \<range\>) | [CRITICAL] PromQL query returned one result within the critical range (22.86 in @0:30)
 3 | [UNKNOWN] PromQL query result set is empty | [UNKNOWN] PromQL query result set is empty
 
-Case #2: Update a service, PromQL query returned multiple items.
+Case #2: PromQL query returned multiple items.
 
 exit status | plugin output | example
 --- | --- | ---
@@ -20,11 +24,31 @@ exit status | plugin output | example
 1 | [CRITICAL] PromQL query returned multiple results within the critical range (values \<min\>..=\<max\> overlap with \<range\> | [CRITICAL] PromQL query returned multiple results within the critical range (values 75.50..=110 overlap with @0:100)
 3 | [UNKNOWN] PromQL query result set is empty | [UNKNOWN] PromQL query result set is empty
 
+**Defaults for Icinga hosts**
+
+Case #3: PromQL query returned a single item.
+
 exit status | plugin output | example
 --- | --- | ---
-0 or 1 | [UP] '\<mapping\>' is \<value\> | [UP] 'ready_workers' is 8
-2 | [DOWN] '\<mapping\>' is \<value\> | [DOWN] 'ready_workers' is 2
-3 | [DOWN] '\<mapping\>': PromQL query result is empty | [DOWN] 'ready_workers': PromQL query result is empty
+0 | [UP] PromQL query returned one result (\<value\>) | [UP] PromQL query returned one result (5.56)
+1 | [UP] PromQL query returned one result within the warning range (\<value\> in \<range\>) | [UP] PromQL query returned one result within the warning range (12.15 in @10:20)
+2 | [DOWN] PromQL query returned one result within the critical range  (\<value\> in \<range\>) | [DOWN] PromQL query returned one result within the critical range (22.86 in @0:30)
+
+Case #4: PromQL query returned multiple items.
+
+exit status | plugin output | example
+--- | --- | ---
+0 | [UP] PromQL query returned multiple results in the range \<min\>..=\<max\> | [UP] PromQL query returned multiple results in the range 0.05..=6.74
+1 | [UP] PromQL query returned multiple results within the warning range (values \<min\>..=\<max\> overlap with \<range\> | [UP] PromQL query returned multiple results within the warning range (values 12..=20 overlap with @10:20)
+1 | [DOWN] PromQL query returned multiple results within the critical range (values \<min\>..=\<max\> overlap with \<range\> | [DOWN] PromQL query returned multiple results within the critical range (values 75.50..=110 overlap with @0:100)
+
+**Default for either**
+
+Case #5: PromQL query returned no result at all
+
+exit status | plugin output
+--- | ---
+3 | [UNKNOWN] PromQL query result set is empty
 
 This default output may be replaced by providing a string with placeholders in the plugin_output. Some placeholders may cause the processing of a mapping to fail if they cannot be evaluated at check execution, see column "fallible".
 Valid placeholders are:
