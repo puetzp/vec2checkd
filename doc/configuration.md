@@ -132,58 +132,6 @@ Some of these parameters may need to be explained further:
 * On **plugin output** and customization see [this document](plugin_output.md)
 * On **performance data** and customization see [this document](performance_data.md)
 
-#### Details on plugin output
-
-The default _plugin output_ is as follows for service objects:
-
-exit status | plugin output | example
---- | --- | ---
-0 | [OK] '\<mapping\>' is \<value\> | [OK] 'running_pods' is 5
-1 | [WARNING] '\<mapping\>' is \<value\> | [WARNING] 'running_pods' is 3
-2 | [CRITICAL] '\<mapping\>' is \<value\> | [CRITICAL] 'running_pods' is 1
-3 | [UNKNOWN] '\<mapping\>': PromQL query result is empty | [UNKNOWN] 'running_pods': PromQL query result is empty
-
-... and for host objects:
-
-exit status | plugin output | example
---- | --- | ---
-0 or 1 | [UP] '\<mapping\>' is \<value\> | [UP] 'ready_workers' is 8
-2 | [DOWN] '\<mapping\>' is \<value\> | [DOWN] 'ready_workers' is 2
-3 | [DOWN] '\<mapping\>': PromQL query result is empty | [DOWN] 'ready_workers': PromQL query result is empty
-
-This default output may be replaced by providing a string with placeholders in the plugin_output. Some placeholders may cause the processing of a mapping to fail if they cannot be evaluated at check execution, see column "fallible".
-Valid placeholders are:
-
-placeholder | description | fallible
---- | --- | ---
-$name | the name of the mapping | no
-$query | the configured PromQL query | no
-$interval | the configured check interval | no
-$host | the Icinga host object to be updated | no
-$service | the Icinga service object to be updated | no
-$value | the result value as returned by the PromQL query | no
-$state | the resulting host/service state that was computed using thresholds, e.g. UP/DOWN and OK/WARNING/CRITICAL or UP/OK when no thresholds were defined | no
-$exit_status | the exit status that was computed using thresholds, e.g. 0/1/2 or 0 when no thresholds were defined | no
-$thresholds.warning | the warning Nagios range if one was configured | no
-$thresholds.critical | the critical Nagios range if one was configured | no
-$performance_data.label | the custom label for performance data if one was configured | no
-$performance_data.uom | the unit-of-measurement of performance data if one was configured | no
-$metric | the metric name of the PromQL query result vector if any | yes
-$labels.<label_name> | an arbitrary label value that is part of the PromQL query result vector | yes
-
-Example:
-
-```yaml
-mappings:
-  'running_pods':
-    ...
-    query: 'kube_deployment_status_replicas_ready{deployment="my-app"}'
-    plugin_output: '[$state] $labels.deployment (namespace: $labels.exported_namespace) has $value running pods'
-    ...
-```
-
-A more complete example can be found in the [default configuration](../defaults/config.yaml) of the debian package.
-
 #### Details on performance data
 
 The default _performance data_ that is sent as part of a passive check result has the following format:
