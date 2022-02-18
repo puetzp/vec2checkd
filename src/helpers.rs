@@ -15,16 +15,20 @@ pub(crate) fn truncate(
 ) -> Result<(), RenderError> {
     let float = h
         .param(0)
-        .ok_or(RenderError::new(format!(
-            "Helper \"{}\": missing a floating point number to truncate",
-            h.name()
-        )))?
+        .ok_or_else(|| {
+            RenderError::new(format!(
+                "Helper \"{}\": missing a floating point number to truncate",
+                h.name()
+            ))
+        })?
         .value()
         .as_f64()
-        .ok_or(RenderError::new(format!(
-            "Helper \"{}\": failed to parse parameter as float",
-            h.name()
-        )))?;
+        .ok_or_else(|| {
+            RenderError::new(format!(
+                "Helper \"{}\": failed to parse parameter as float",
+                h.name()
+            ))
+        })?;
 
     match float.fract().classify() {
         std::num::FpCategory::Zero => out.write(&float.to_string())?,
@@ -32,10 +36,12 @@ pub(crate) fn truncate(
             None => out.write(&format!("{:.2}", float))?,
             Some(p) => {
                 let precision = {
-                    let i = p.value().as_u64().ok_or(RenderError::new(format!(
-                        "Helper \"{}\": failed to parse parameter 'prec' as integer",
-                        h.name()
-                    )))?;
+                    let i = p.value().as_u64().ok_or_else(|| {
+                        RenderError::new(format!(
+                            "Helper \"{}\": failed to parse parameter 'prec' as integer",
+                            h.name()
+                        ))
+                    })?;
                     usize::try_from(i).unwrap()
                 };
 

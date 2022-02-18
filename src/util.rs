@@ -2,7 +2,7 @@ use crate::icinga;
 use crate::types::{Data, Mapping};
 use anyhow::anyhow;
 use anyhow::Context;
-use log::{debug, warn};
+use log::debug;
 use prometheus_http_query::response::InstantVector;
 use std::num::FpCategory;
 use std::time::{Duration, SystemTime};
@@ -50,10 +50,10 @@ fn convert_query_result<'a>(
 
     for instant_vector in instant_vectors {
         let value = instant_vector.sample().value();
-        let (real_exit_value, temp_exit_value) = icinga::check_thresholds(&mapping, value);
+        let (real_exit_value, temp_exit_value) = icinga::check_thresholds(mapping, value);
         let exit_status = icinga::exit_value_to_status(mapping.service.as_ref(), &real_exit_value);
         let data = Data::from(
-            &mapping,
+            mapping,
             instant_vector.metric(),
             value,
             real_exit_value,
@@ -140,7 +140,7 @@ pub(crate) async fn execute_task(
                     mapping.name, template
                 );
                 icinga::plugin_output::format_from_template(
-                    &template,
+                    template,
                     &mapping,
                     data,
                     overall_real_exit_value,

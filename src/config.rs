@@ -27,7 +27,7 @@ fn parse_mapping(mapping: (&Yaml, &Yaml)) -> Result<Mapping, anyhow::Error> {
         .0
         .as_str()
         .ok_or(ParseFieldError {
-            field: format!("mappings.$name"),
+            field: "mappings.$name".to_string(),
             kind: "string",
         })?
         .to_string();
@@ -315,7 +315,7 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
                     field: String::from("icinga.ca_cert"),
                     kind: "string",
                 })
-                .map(|p| PathBuf::from(p))?,
+                .map(PathBuf::from)?,
         ),
         None => None,
     };
@@ -411,7 +411,7 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
                         field: String::from(conf_attr),
                         kind: "string",
                     })
-                    .map(|p| PathBuf::from(p))?
+                    .map(PathBuf::from)?
             };
 
             let client_key = {
@@ -426,7 +426,7 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
                         field: String::from(conf_attr),
                         kind: "string",
                     })
-                    .map(|p| PathBuf::from(p))?
+                    .map(PathBuf::from)?
             };
 
             IcingaAuth::X509(IcingaX509Auth {

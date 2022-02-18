@@ -8,19 +8,10 @@ use std::time::{Duration, Instant};
 /// A pair of thresholds that may be provided by each mapping
 /// in order to determine exit values for each time series in
 /// a PromQL result set.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct ThresholdPair {
     pub warning: Option<NagiosRange>,
     pub critical: Option<NagiosRange>,
-}
-
-impl Default for ThresholdPair {
-    fn default() -> Self {
-        ThresholdPair {
-            warning: None,
-            critical: None,
-        }
-    }
 }
 
 /// NagiosRange does not impl Serialize, so the blanket impl does
@@ -75,12 +66,12 @@ pub(crate) struct PerformanceDataRenderContext<'a> {
 }
 
 impl<'a> PerformanceDataRenderContext<'a> {
-    pub(crate) fn from(mapping: &'a Mapping, metric: &'a HashMap<String, String>) -> Self {
+    pub(crate) fn from(mapping: &'a Mapping, labels: &'a HashMap<String, String>) -> Self {
         PerformanceDataRenderContext {
             name: &mapping.name,
             host: &mapping.host,
             service: &mapping.service,
-            labels: &metric,
+            labels,
         }
     }
 }
@@ -133,9 +124,9 @@ impl<'a> PluginOutputRenderContext<'a> {
             host: &mapping.host,
             service: &mapping.service,
             interval: mapping.interval.as_secs(),
-            data: data,
-            exit_value: &exit_value,
-            exit_status: &exit_status,
+            data,
+            exit_value,
+            exit_status,
             is_ok: if updates_service {
                 Some(*exit_value == 0)
             } else {
@@ -233,9 +224,9 @@ impl<'a> Data<'a> {
             } else {
                 Some(real_exit_value == 1)
             },
-            real_exit_value: real_exit_value,
-            temp_exit_value: temp_exit_value,
-            exit_status: exit_status,
+            real_exit_value,
+            temp_exit_value,
+            exit_status,
         }
     }
 }

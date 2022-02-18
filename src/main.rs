@@ -107,36 +107,32 @@ async fn main() -> Result<(), anyhow::Error> {
                 "'{}': task finished in {} millisecond(s); next execution in ~{} second(s)",
                 mapping.name,
                 task_start.elapsed().as_millis(),
-                compute_delta(&mapping).as_secs()
+                compute_delta(mapping).as_secs()
             ),
             Ok(Err(err)) => error!(
                 "'{}': failed to finish task: {}; next execution in ~{} second(s)",
                 mapping.name,
                 err.root_cause(),
-                compute_delta(&mapping).as_secs()
+                compute_delta(mapping).as_secs()
             ),
             Err(err) => error!(
                 "'{}': failed to finish task: {}; next execution in ~{} second(s)",
                 mapping.name,
                 err,
-                compute_delta(&mapping).as_secs()
+                compute_delta(mapping).as_secs()
             ),
         }
     }
 
     info!("Enter the periodic check loop");
     loop {
-        let sleep_secs = mappings
-            .iter()
-            .map(|mapping| compute_delta(&mapping))
-            .min()
-            .unwrap();
+        let sleep_secs = mappings.iter().map(compute_delta).min().unwrap();
 
         std::thread::sleep(sleep_secs);
 
         for mapping in mappings
             .iter_mut()
-            .filter(|mapping| compute_delta(&mapping).as_secs() <= 1)
+            .filter(|mapping| compute_delta(mapping).as_secs() <= 1)
         {
             let task_start = Instant::now();
 
@@ -152,7 +148,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     "'{}': task finished in {} millisecond(s), next execution in ~{} second(s)",
                     mapping.name,
                     task_start.elapsed().as_millis(),
-                    compute_delta(&mapping).as_secs()
+                    compute_delta(mapping).as_secs()
                 ),
                 Ok(Err(e)) => error!(
                     "'{}': failed to finish task: {}",

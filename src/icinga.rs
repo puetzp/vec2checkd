@@ -103,7 +103,7 @@ impl IcingaClient {
         // next check is to be executed.
         // This may need to be further reduced when checks are skipped
         // due to e.g. slow response times from the API.
-        builder = builder.timeout(crate::util::compute_delta(&mapping));
+        builder = builder.timeout(crate::util::compute_delta(mapping));
 
         let request = builder.build()?;
 
@@ -219,7 +219,7 @@ pub mod plugin_output {
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
-        let context = PluginOutputRenderContext::from(&mapping, &data, &exit_value, &exit_status);
+        let context = PluginOutputRenderContext::from(mapping, &data, &exit_value, &exit_status);
         let plugin_output = handlebars
             .render_template(template, &context)
             .with_context(|| {
@@ -239,13 +239,13 @@ pub mod plugin_output {
                 "'{}': PromQL query result is empty, default to 'UNKNOWN' status",
                 mapping
             );
-            format!("[UNKNOWN] PromQL query result set is empty")
+            "[UNKNOWN] PromQL query result set is empty".to_string()
         } else {
             warn!(
                 "'{}': PromQL query result is empty, default to 'DOWN' status",
                 mapping
             );
-            format!("[DOWN] PromQL query result set is empty")
+            "[DOWN] PromQL query result set is empty".to_string()
         }
     }
 
@@ -448,12 +448,12 @@ pub(crate) fn format_performance_data<'a>(
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
 
         for item in data.iter() {
-            let context = PerformanceDataRenderContext::from(mapping, &item.labels);
+            let context = PerformanceDataRenderContext::from(mapping, item.labels);
             let label = handlebars
                 .render_template(template, &context)
                 .with_context(|| "failed to render performance data from handlebars template using the given context")?;
             check_label(&mut unique_labels, &label)?;
-            insert_performance_data(&mut result, &mapping, &label, &item.value);
+            insert_performance_data(&mut result, mapping, &label, &item.value);
         }
     } else {
         // Concatenate all label keys and values within a vector to a single
@@ -476,7 +476,7 @@ pub(crate) fn format_performance_data<'a>(
             };
             let label = format!("{}/{}", &mapping.name, checksum);
             check_label(&mut unique_labels, &label)?;
-            insert_performance_data(&mut result, &mapping, &label, &item.value);
+            insert_performance_data(&mut result, mapping, &label, &item.value);
         }
     }
 
