@@ -150,7 +150,10 @@ pub(crate) struct Data<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_down: Option<bool>,
     pub exit_status: String,
-    pub exit_value: u8,
+    #[serde(rename = "exit_value")]
+    pub real_exit_value: u8,
+    #[serde(skip_serializing)]
+    pub temp_exit_value: u8,
 }
 
 impl<'a> Data<'a> {
@@ -158,7 +161,8 @@ impl<'a> Data<'a> {
         mapping: &'a Mapping,
         time_series: &'a prometheus_http_query::response::InstantVector,
         value: f64,
-        exit_value: u8,
+        real_exit_value: u8,
+        temp_exit_value: u8,
         exit_status: String,
     ) -> Self {
         let updates_service = mapping.service.is_some();
@@ -166,31 +170,32 @@ impl<'a> Data<'a> {
             labels: time_series.metric(),
             value: value,
             is_ok: if updates_service {
-                Some(exit_value == 0)
+                Some(real_exit_value == 0)
             } else {
                 None
             },
             is_warning: if updates_service {
-                Some(exit_value == 1)
+                Some(real_exit_value == 1)
             } else {
                 None
             },
             is_critical: if updates_service {
-                Some(exit_value == 2)
+                Some(real_exit_value == 2)
             } else {
                 None
             },
             is_up: if updates_service {
                 None
             } else {
-                Some(exit_value == 0)
+                Some(real_exit_value == 0)
             },
             is_down: if updates_service {
                 None
             } else {
-                Some(exit_value == 1)
+                Some(real_exit_value == 1)
             },
-            exit_value: exit_value,
+            real_exit_value: real_exit_value,
+            temp_exit_value: temp_exit_value,
             exit_status: exit_status,
         }
     }

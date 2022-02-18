@@ -3,7 +3,7 @@ use crate::types::*;
 use crate::util;
 use anyhow::{bail, Context};
 use handlebars::Handlebars;
-use log::debug;
+use log::{debug, warn};
 use md5::{Digest, Md5};
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
@@ -233,8 +233,20 @@ pub mod plugin_output {
     /// Return a default plugin output corresponding to an UNKNOWN state
     /// due to an empty query result.
     #[inline]
-    pub(crate) fn format_default_without_result() -> String {
-        format!("[UNKNOWN] PromQL query result set is empty")
+    pub(crate) fn format_default(mapping: &str, updates_service: bool) -> String {
+        if updates_service {
+            warn!(
+                "'{}': PromQL query result is empty, default to 'UNKNOWN' status",
+                mapping
+            );
+            format!("[UNKNOWN] PromQL query result set is empty")
+        } else {
+            warn!(
+                "'{}': PromQL query result is empty, default to 'DOWN' status",
+                mapping
+            );
+            format!("[DOWN] PromQL query result set is empty")
+        }
     }
 
     /// Return the default plugin output when the query result set contains
@@ -329,29 +341,37 @@ pub mod plugin_output {
     }
 }
 
-/// The basic Nagios stuff. Check if at least one value lies in the warning/critical
+/// Check if at least one value lies in the warning/critical
 /// range while the critical range takes precedence over the warning range.
-pub(crate) fn check_thresholds(mapping: &Mapping, value: f64) -> u8 {
+/// Then two exit values are returned depending on the type of object that
+/// is ultimately updated with the check result. A real value that is sent
+/// as-is to the Icinga API and a temporary value that is used to provide
+/// more detailed plugin output in case of host objects and is dropped later.
+pub(crate) fn check_thresholds(mapping: &Mapping, value: f64) -> (u8, u8) {
     if let Some(critical) = mapping.thresholds.critical {
         if critical.check(value) {
             if mapping.service.is_some() {
-                return 2;
+                return (2, 2);
             } else {
-                return 1;
+                return (1, 2);
             }
         }
     }
 
     if let Some(warning) = mapping.thresholds.warning {
         if warning.check(value) {
-            return 1;
+            if mapping.service.is_some() {
+                return (1, 1);
+            } else {
+                return (0, 1);
+            }
         }
     }
 
-    0
+    (0, 0)
 }
 
-/// Also basic Nagios stuff. A particular exit status is associated with a given
+/// Basic Nagios stuff. A particular exit status is associated with a given
 /// state. The state differs for host and service objects.
 pub(crate) fn exit_value_to_status(service: Option<&String>, exit_value: &u8) -> String {
     match exit_value {
@@ -373,7 +393,7 @@ pub(crate) fn exit_value_to_status(service: Option<&String>, exit_value: &u8) ->
             if service.is_some() {
                 "WARNING".to_string()
             } else {
-                "DOWN".to_string()
+                "UP".to_string()
             }
         }
         0 => {
