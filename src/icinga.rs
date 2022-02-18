@@ -233,7 +233,7 @@ pub mod plugin_output {
     /// Return a default plugin output corresponding to an UNKNOWN state
     /// due to an empty query result.
     #[inline]
-    pub(crate) fn format_default(mapping: &str, updates_service: bool) -> String {
+    pub(crate) fn format_default_without_data(mapping: &str, updates_service: bool) -> String {
         if updates_service {
             warn!(
                 "'{}': PromQL query result is empty, default to 'UNKNOWN' status",
@@ -259,6 +259,7 @@ pub mod plugin_output {
         value: f64,
         exit_value: u8,
     ) -> String {
+        debug!("'{}': Build default plugin output from the one and only item in the PromQL query result set", mapping.name);
         let value = util::truncate_to_string(value);
         let exit_status = exit_value_to_status(mapping.service.as_ref(), &exit_value);
         match exit_value {
@@ -302,10 +303,16 @@ pub mod plugin_output {
         values: &[&f64],
         exit_value: u8,
     ) -> String {
-        //        let value = util::truncate_to_string(value);
+        debug!(
+            "'{}': Build default plugin output from {} items in the PromQL query result set",
+            mapping.name,
+            values.len()
+        );
+
         let min_value = values.iter().map(|v| **v).reduce(f64::min).unwrap();
         let max_value = values.iter().map(|v| **v).reduce(f64::max).unwrap();
         let value_range = min_value..=max_value;
+
         match exit_value {
             2 => {
                 // Can be unwrapped safely as exit status 2 is only possible when a
