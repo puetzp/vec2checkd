@@ -165,7 +165,7 @@ impl<'a> PluginOutputRenderContext<'a> {
 /// Note that the helpers are serialized selectively as `is_up` does
 /// not make sense in the context of an Icinga service object and
 /// `is_ok` does not make sense in the context of a host object.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub(crate) struct Data<'a> {
     pub labels: &'a HashMap<String, String>,
     pub value: f64,
@@ -188,14 +188,13 @@ pub(crate) struct Data<'a> {
 
 impl<'a> Data<'a> {
     pub(crate) fn from(
-        mapping: &'a Mapping,
+        updates_service: bool,
         labels: &'a HashMap<String, String>,
         value: f64,
         real_exit_value: u8,
         temp_exit_value: u8,
         exit_status: String,
     ) -> Self {
-        let updates_service = mapping.service.is_some();
         Data {
             labels,
             value,
@@ -271,5 +270,55 @@ impl Default for PerformanceData {
             label: None,
             uom: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_data_init_for_host_object() {
+        let mut labels = HashMap::new();
+        labels.insert("test_label".to_string(), "test_value".to_string());
+        let result = Data {
+            labels: &labels,
+            value: 5.0,
+            is_ok: None,
+            is_warning: None,
+            is_critical: None,
+            is_up: Some(true),
+            is_down: Some(false),
+            real_exit_value: 0,
+            temp_exit_value: 0,
+            exit_status: "UP".to_string(),
+        };
+        assert_eq!(
+            Data::from(false, &labels, 5.0, 0, 0, "UP".to_string()),
+            result
+        );
+    }
+
+    #[test]
+    fn test_data_init_for_service_object() {
+        let mut labels = HashMap::new();
+        labels.insert("test_label".to_string(), "test_value".to_string());
+        let result = Data {
+            labels: &labels,
+            value: 5.0,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
+            real_exit_value: 0,
+            temp_exit_value: 0,
+            exit_status: "OK".to_string(),
+        };
+        assert_eq!(
+            Data::from(true, &labels, 5.0, 0, 0, "OK".to_string()),
+            result
+        );
     }
 }

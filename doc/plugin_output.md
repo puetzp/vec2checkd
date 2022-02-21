@@ -25,6 +25,7 @@ warning threshold was hit | [WARNING] PromQL query returned multiple results wit
 critical threshold was hit | [CRITICAL] PromQL query returned multiple results within the critical range (values 75.50..=110 overlap with @0:100)
 no result from PromQL query | [UNKNOWN] PromQL query result set is empty
 
+
 **Defaults for Icinga hosts**
 
 Case #1: PromQL query returned a single item.
@@ -99,6 +100,44 @@ The _context_ in this case is a single object that contains all the information 
 }
 ```
 
+**Note:** The context differs slightly when it is used to render output for Icinga host objects. In this case it does not contain **is_ok**, **is_warning** and **is_critical** but **is_up** and **is_down**
 
+Using the context above translates the following mapping:
 
+```
+mappings:
+  # ...
+  Node status:
+    query: kube_node_status_condition{cluster="test",condition="Ready",status="true"}
+    host: Kubernetes (Test-Cluster)
+    interval: 30
+    thresholds:
+      critical: "1:"
+    plugin_output: |
+      {{ #if is_up }}
+      [{{ exit_status }}] All nodes are ready and report no problems
+      {{ else }}
+      [{{ exit_status }}] At least one node has a problem
+      {{ /if }}
+      {{ #each data }}
+      {{ #if this.is_down }}
+      [{{ this.exit_status }}] Kubelet on {{ this.labels.exported_node }} is not ready
+      {{ /if }}
+      {{ /each }}
+    performance_data:
+      enabled: false
+```
 
+... to the output:
+
+```
+[UP] All nodes are ready and report no problems
+```
+
+... and if a node transitions to a "not ready" state the same template produces:
+
+```
+[DOWN] At least one node has a problem
+
+[DOWN] Kubelet on ipoffmsv104 is not ready
+```

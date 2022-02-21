@@ -51,9 +51,9 @@ fn convert_query_result<'a>(
     for instant_vector in instant_vectors {
         let value = instant_vector.sample().value();
         let (real_exit_value, temp_exit_value) = icinga::check_thresholds(mapping, value);
-        let exit_status = icinga::exit_value_to_status(mapping.service.as_ref(), &real_exit_value);
+        let exit_status = icinga::exit_value_to_status(mapping.service.as_ref(), &temp_exit_value);
         let data = Data::from(
-            mapping,
+            mapping.service.is_some(),
             instant_vector.metric(),
             value,
             real_exit_value,
@@ -132,6 +132,22 @@ pub(crate) async fn execute_task(
                 .unwrap()
                 .real_exit_value;
 
+            // This is a "temporary" exit value computed from the highest from
+            // the set of all individual "temp" exit values of each data point.
+            // The "temp" exit value is the same as the "real" exit value when
+            // the mapping corresponds to an Icinga service object but differs
+            // for host objects. That is because the service states (0-3) are
+            // in this case collapsed to two states (0 and 1) but we need the
+            // full range of states (0-3) to produce a more meaningful output
+            // that is aware of possibly breached warning and critical thresholds.
+            // As such the "temp" value is dropped after computing the default
+            // output.
+            let overall_temp_exit_value = data
+                .iter()
+                .max_by(|x, y| x.temp_exit_value.cmp(&y.temp_exit_value))
+                .unwrap()
+                .temp_exit_value;
+
             // Compute a plugin output either from a handlebars template (if any) or
             // fall back to generic default outputs.
             let plugin_output = if let Some(ref template) = mapping.plugin_output {
@@ -144,24 +160,9 @@ pub(crate) async fn execute_task(
                     &mapping,
                     data,
                     overall_real_exit_value,
+                    overall_temp_exit_value,
                 )?
             } else {
-                // This is a "temporary" exit value computed from the highest from
-                // the set of all individual "temp" exit values of each data point.
-                // The "temp" exit value is the same as the "real" exit value when
-                // the mapping corresponds to an Icinga service object but differs
-                // for host objects. That is because the service states (0-3) are
-                // in this case collapsed to two states (0 and 1) but we need the
-                // full range of states (0-3) to produce a more meaningful output
-                // that is aware of possibly breached warning and critical thresholds.
-                // As such the "temp" value is dropped after computing the default
-                // output.
-                let overall_temp_exit_value = data
-                    .iter()
-                    .max_by(|x, y| x.temp_exit_value.cmp(&y.temp_exit_value))
-                    .unwrap()
-                    .temp_exit_value;
-
                 if data.len() == 1 {
                     let value = data.first().unwrap().value;
                     icinga::plugin_output::format_default_single_item(

@@ -213,13 +213,15 @@ pub mod plugin_output {
         template: &str,
         mapping: &Mapping,
         data: Vec<Data<'a>>,
-        exit_value: u8,
+        real_exit_value: u8,
+        temp_exit_value: u8,
     ) -> Result<String, anyhow::Error> {
-        let exit_status = exit_value_to_status(mapping.service.as_ref(), &exit_value);
+        let exit_status = exit_value_to_status(mapping.service.as_ref(), &temp_exit_value);
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
-        let context = PluginOutputRenderContext::from(mapping, &data, &exit_value, &exit_status);
+        let context =
+            PluginOutputRenderContext::from(mapping, &data, &real_exit_value, &exit_status);
         let plugin_output = handlebars
             .render_template(template, &context)
             .with_context(|| {
@@ -1059,6 +1061,94 @@ mod tests {
 [OK] foo_value is 5
 [CRITICAL] bar_value is 15
 [OK] value is 25.5547
+"
+            .to_string()
+        );
+    }
+
+    #[test]
+    fn test_format_plugin_output_from_template_with_each_loop_without_service() {
+        let mapping = Mapping {
+            name: "random name".to_string(),
+            query: "up{random_label=\"random_value\"}".to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: Some(NagiosRange::from("@10:20").unwrap()),
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: Some(
+                "[{{ exit_status }}] Overall bla bla
+{{ #each data }}
+[{{ this.exit_status }}] {{ this.labels.known_label }} is {{ truncate prec=2 this.value }}
+{{ /each }}
+"
+                .to_string(),
+            ),
+            performance_data: PerformanceData::default(),
+        };
+        let mut data = vec![];
+
+        let mut labels = HashMap::new();
+        labels.insert("known_label".to_string(), "foo_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            labels: &labels,
+            value: 5.0,
+            is_ok: None,
+            is_warning: None,
+            is_critical: None,
+            is_up: Some(true),
+            is_down: Some(false),
+            exit_status: "UP".to_string(),
+            real_exit_value: 0,
+            temp_exit_value: 0,
+        };
+        data.push(d);
+
+        let mut labels = HashMap::new();
+        labels.insert("known_label".to_string(), "bar_value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            labels: &labels,
+            value: 15.0,
+            is_ok: None,
+            is_warning: None,
+            is_critical: None,
+            is_up: Some(false),
+            is_down: Some(true),
+            exit_status: "DOWN".to_string(),
+            real_exit_value: 1,
+            temp_exit_value: 2,
+        };
+        data.push(d);
+
+        let mut labels = HashMap::new();
+        labels.insert("known_label".to_string(), "value".to_string());
+        labels.insert("another_label".to_string(), "another_value".to_string());
+        let d = Data {
+            labels: &labels,
+            value: 25.55465123,
+            is_ok: None,
+            is_warning: None,
+            is_critical: None,
+            is_up: Some(true),
+            is_down: Some(false),
+            exit_status: "UP".to_string(),
+            real_exit_value: 0,
+            temp_exit_value: 0,
+        };
+        data.push(d);
+
+        assert_eq!(
+            format_from_template(mapping.plugin_output.as_ref().unwrap(), &mapping, data, 2)
+                .unwrap(),
+            "[DOWN] Overall bla bla
+[UP] foo_value is 5
+[DOWN] bar_value is 15
+[UP] value is 25.55
 "
             .to_string()
         );
