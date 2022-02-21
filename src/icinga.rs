@@ -213,15 +213,13 @@ pub mod plugin_output {
         template: &str,
         mapping: &Mapping,
         data: Vec<Data<'a>>,
-        real_exit_value: u8,
-        temp_exit_value: u8,
+        exit_value: u8,
+        exit_status: String,
     ) -> Result<String, anyhow::Error> {
-        let exit_status = exit_value_to_status(mapping.service.as_ref(), &temp_exit_value);
         let mut handlebars = Handlebars::new();
         handlebars.set_strict_mode(true);
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
-        let context =
-            PluginOutputRenderContext::from(mapping, &data, &real_exit_value, &exit_status);
+        let context = PluginOutputRenderContext::from(mapping, &data, &exit_value, &exit_status);
         let plugin_output = handlebars
             .render_template(template, &context)
             .with_context(|| {
@@ -260,10 +258,10 @@ pub mod plugin_output {
         mapping: &Mapping,
         value: f64,
         exit_value: u8,
+        exit_status: String,
     ) -> String {
         debug!("'{}': Build default plugin output from the one and only item in the PromQL query result set", mapping.name);
         let value = util::truncate_to_string(value);
-        let exit_status = exit_value_to_status(mapping.service.as_ref(), &exit_value);
         match exit_value {
             2 => {
                 // Can be unwrapped safely as exit status 2 is only possible when a
@@ -304,6 +302,7 @@ pub mod plugin_output {
         mapping: &Mapping,
         values: &[&f64],
         exit_value: u8,
+        exit_status: String,
     ) -> String {
         debug!(
             "'{}': Build default plugin output from {} items in the PromQL query result set",
@@ -320,27 +319,24 @@ pub mod plugin_output {
                 // Can be unwrapped safely as exit status 2 is only possible when a
                 // critical threshold was given.
                 let crit_range = mapping.thresholds.critical.as_ref().unwrap().to_string();
-                let status = mapping.service.as_ref().map_or("DOWN", |_| "CRITICAL");
                 format!(
                     "[{}] PromQL query returned multiple results within the critical range (values {:?} overlap with {})",
-                    status, value_range, crit_range
+                    exit_status, value_range, crit_range
                 )
             }
             1 => {
                 // Can be unwrapped safely as exit status 1 is only possible when a
                 // warning threshold was given.
                 let warn_range = mapping.thresholds.warning.as_ref().unwrap().to_string();
-                let status = mapping.service.as_ref().map_or("UP", |_| "WARNING");
                 format!(
                     "[{}] PromQL query returned multiple results within the warning range (values {:?} overlap with {})",
-                    status, value_range, warn_range
+                    exit_status, value_range, warn_range
                 )
             }
             0 => {
-                let status = mapping.service.as_ref().map_or("UP", |_| "OK");
                 format!(
                     "[{}] PromQL query returned multiple results in the range {:?}",
-                    status, value_range
+                    exit_status, value_range
                 )
             }
             // Exit status "3"/"UNKNOWN" can be ignored safely as it has been handled
@@ -564,7 +560,10 @@ mod tests {
         let result =
             "[DOWN] PromQL query returned one result within the critical range (15 in @10:20)"
                 .to_string();
-        assert_eq!(format_default_single_item(&mapping, 15.0, 2), result);
+        assert_eq!(
+            format_default_single_item(&mapping, 15.0, 2, "DOWN".to_string()),
+            result
+        );
     }
 
     #[test]
@@ -585,7 +584,10 @@ mod tests {
         };
         let result = "[UP] PromQL query returned one result within the warning range (5 in @0:10)"
             .to_string();
-        assert_eq!(format_default_single_item(&mapping, 5.0, 1), result);
+        assert_eq!(
+            format_default_single_item(&mapping, 5.0, 1, "UP".to_string()),
+            result
+        );
     }
 
     #[test]
@@ -605,7 +607,10 @@ mod tests {
             performance_data: PerformanceData::default(),
         };
         let result = "[UP] PromQL query returned one result (2)".to_string();
-        assert_eq!(format_default_single_item(&mapping, 2.0, 0), result);
+        assert_eq!(
+            format_default_single_item(&mapping, 2.0, 0, "UP".to_string()),
+            result
+        );
     }
 
     #[test]
@@ -627,7 +632,10 @@ mod tests {
         let result =
             "[CRITICAL] PromQL query returned one result within the critical range (15 in @10:20)"
                 .to_string();
-        assert_eq!(format_default_single_item(&mapping, 15.0, 2), result);
+        assert_eq!(
+            format_default_single_item(&mapping, 15.0, 2, "CRITICAL".to_string()),
+            result
+        );
     }
 
     #[test]
@@ -649,7 +657,10 @@ mod tests {
         let result =
             "[WARNING] PromQL query returned one result within the warning range (5 in @0:10)"
                 .to_string();
-        assert_eq!(format_default_single_item(&mapping, 5.0, 1), result);
+        assert_eq!(
+            format_default_single_item(&mapping, 5.0, 1, "WARNING".to_string()),
+            result
+        );
     }
 
     #[test]
@@ -669,7 +680,10 @@ mod tests {
             performance_data: PerformanceData::default(),
         };
         let result = "[OK] PromQL query returned one result (2)".to_string();
-        assert_eq!(format_default_single_item(&mapping, 2.0, 0), result);
+        assert_eq!(
+            format_default_single_item(&mapping, 2.0, 0, "OK".to_string()),
+            result
+        );
     }
 
     #[test]
@@ -971,7 +985,8 @@ mod tests {
                 mapping.plugin_output.as_ref().unwrap(),
                 &mapping,
                 vec![data_item],
-                0
+                0,
+                "OK".to_string()
             )
             .unwrap(),
             "[OK] Trivial templating test; some_value; every 60 seconds".to_string()
@@ -1055,8 +1070,14 @@ mod tests {
         data.push(d);
 
         assert_eq!(
-            format_from_template(mapping.plugin_output.as_ref().unwrap(), &mapping, data, 2)
-                .unwrap(),
+            format_from_template(
+                mapping.plugin_output.as_ref().unwrap(),
+                &mapping,
+                data,
+                2,
+                "CRITICAL".to_string()
+            )
+            .unwrap(),
             "[CRITICAL] Overall bla bla
 [OK] foo_value is 5
 [CRITICAL] bar_value is 15
@@ -1143,8 +1164,14 @@ mod tests {
         data.push(d);
 
         assert_eq!(
-            format_from_template(mapping.plugin_output.as_ref().unwrap(), &mapping, data, 2)
-                .unwrap(),
+            format_from_template(
+                mapping.plugin_output.as_ref().unwrap(),
+                &mapping,
+                data,
+                2,
+                "DOWN".to_string()
+            )
+            .unwrap(),
             "[DOWN] Overall bla bla
 [UP] foo_value is 5
 [DOWN] bar_value is 15

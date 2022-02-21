@@ -148,6 +148,12 @@ pub(crate) async fn execute_task(
                 .unwrap()
                 .temp_exit_value;
 
+            // The overall exit status associated with the "temporary exit value".
+            // One of "OK", "CRITICAL, "WARNING", "UNKNOWN" for Icinga services.
+            // One of "UP", "DOWN" for Icinga hosts.
+            let overall_exit_status =
+                icinga::exit_value_to_status(mapping.service.as_ref(), &overall_temp_exit_value);
+
             // Compute a plugin output either from a handlebars template (if any) or
             // fall back to generic default outputs.
             let plugin_output = if let Some(ref template) = mapping.plugin_output {
@@ -160,7 +166,7 @@ pub(crate) async fn execute_task(
                     &mapping,
                     data,
                     overall_real_exit_value,
-                    overall_temp_exit_value,
+                    overall_exit_status,
                 )?
             } else {
                 if data.len() == 1 {
@@ -169,6 +175,7 @@ pub(crate) async fn execute_task(
                         &mapping,
                         value,
                         overall_temp_exit_value,
+                        overall_exit_status,
                     )
                 } else {
                     let values: Vec<&f64> = data.iter().map(|d| &d.value).collect();
@@ -176,6 +183,7 @@ pub(crate) async fn execute_task(
                         &mapping,
                         &values,
                         overall_temp_exit_value,
+                        overall_exit_status,
                     )
                 }
             };
