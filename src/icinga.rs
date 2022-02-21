@@ -694,11 +694,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -708,11 +711,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 15.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -722,11 +728,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 20.5,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -767,11 +776,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -781,11 +793,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 15.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -820,11 +835,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -834,11 +852,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 15.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -879,11 +900,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -893,11 +917,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -927,11 +954,14 @@ mod tests {
         let data_item = Data {
             labels: &labels,
             value: 5.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
 
         assert_eq!(
@@ -977,11 +1007,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 5.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
@@ -991,11 +1024,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 15.0,
-            is_ok: true,
-            is_warning: false,
-            is_critical: true,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(true),
+            is_up: None,
+            is_down: None,
             exit_status: "CRITICAL".to_string(),
-            exit_value: 2,
+            real_exit_value: 2,
+            temp_exit_value: 2,
         };
         data.push(d);
 
@@ -1005,11 +1041,14 @@ mod tests {
         let d = Data {
             labels: &labels,
             value: 25.55465123,
-            is_ok: true,
-            is_warning: false,
-            is_critical: false,
+            is_ok: Some(true),
+            is_warning: Some(false),
+            is_critical: Some(false),
+            is_up: None,
+            is_down: None,
             exit_status: "OK".to_string(),
-            exit_value: 0,
+            real_exit_value: 0,
+            temp_exit_value: 0,
         };
         data.push(d);
 
