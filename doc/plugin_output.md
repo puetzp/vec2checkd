@@ -19,7 +19,7 @@ no result from PromQL query | [UNKNOWN] PromQL query result set is empty
 Case #2: PromQL query returned multiple items.
 
 evaluation | example
---- | --- | ---
+--- | ---
 no threshold was hit | [OK] PromQL query returned multiple results in the range 0.05..=6.74
 warning threshold was hit | [WARNING] PromQL query returned multiple results within the warning range (values 12..=20 overlap with @10:20)
 critical threshold was hit | [CRITICAL] PromQL query returned multiple results within the critical range (values 75.50..=110 overlap with @0:100)
@@ -39,7 +39,7 @@ no result from PromQL query | [DOWN] PromQL query result set is empty
 Case #2: PromQL query returned multiple items.
 
 evaluation | example
---- | --- | ---
+--- | ---
 no threshold was hit | [UP] PromQL query returned multiple results in the range 0.05..=6.74
 warning threshold was hit | [UP] PromQL query returned multiple results within the warning range (values 12..=20 overlap with @10:20)
 critical threshold was hit | [DOWN] PromQL query returned multiple results within the critical range (values 75.50..=110 overlap with @0:100)
