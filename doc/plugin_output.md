@@ -139,5 +139,5 @@ mappings:
 ```
 [DOWN] At least one node has a problem
 
-[DOWN] Kubelet on ipoffmsv104 is not ready
+[DOWN] Kubelet on worker1 is not ready
 ```
