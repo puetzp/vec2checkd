@@ -84,3 +84,4 @@ As we aggregate by the labels "status" and "exported_namespace" we know that the
 ```
 
 **Note:** vec2checkd will throw an error if it detects duplicate performance data labels and not send the passive check result. This is basically a safety measure as mixing up performance data labels might mess with your data further downstream.
+Also note that as per the [specifics on templating](templating.md) processing the mapping will also fail if the expressions in the template cannot be evaluated because e.g. a field is missing ("strict mode"). For example generating proper performance data labels may fail for the mapping above when a single time series is contained in the result set that only has _one_ of the two labels referred to in the label template (either "status" _or_ "exported_namespace").
