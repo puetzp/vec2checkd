@@ -8,6 +8,6 @@ This document contains just some general information regarding the [handlebars i
 
 * this version of [handlebars](https://github.com/sunng87/handlebars-rust) implements only essential helpers listed [here](https://docs.rs/handlebars/4.2.1/handlebars/#built-in-helpers)
 * vec2checkd implements one custom helper that may be used in templates called "truncate". "truncate" can be used to reduce the precision of a float value in places where the exact number does not matter (e.g. plugin output) to a specific number of decimals.
-  Call with optional precision: "{{ truncate prec=4 <float> }}"
-  Call without precision (default 2): "{{ truncate <float> }}"
+  - Call with optional precision: "{{ truncate prec=4 <float> }}"
+  - Call without precision (default 2): "{{ truncate <float> }}"
 * vec2checkd uses handlebars in [strict mode](https://docs.rs/handlebars/4.2.1/handlebars/#strict-mode). So in general rendering a template that access a non-existing field that is not part of the _context_ will fail. However in certain cases accessing a non-existing field will not fail, e.g. when this field is a parameter to a built-in helper like "#if". Keeping this in mind will probably save you some time when you cannot fathom why the plugin output in Icinga does not look as you expected.
