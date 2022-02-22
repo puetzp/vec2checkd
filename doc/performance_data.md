@@ -38,7 +38,8 @@ This can be avoided by customizing the performance data labels.
 ## Customizing performance data labels
 
 Labels can be customized using a [handlebars template](https://handlebarsjs.com/) in the mapping configuration (see [the document that describes the YAML structure](configuration.md)). Vec2checkd then uses this template and a specific context to render performance data labels.
-The _context_ in this case is a single object with all information that may be useful for rendering performance data labels. This context is evaluated per performance data and time series (in that it differs from the plugin output templating where the context corresponds is evaluated per check and thus contains way more information):
+The _context_ in this case is a single object with all information that may be useful for rendering performance data labels. This context is evaluated per performance data and time series (in that it differs from the plugin output templating where the context is evaluated per check and thus contains way more information).
+A context contains the following fields:
 
 ```
 {
@@ -82,4 +83,4 @@ As we aggregate by the labels "status" and "exported_namespace" we know that the
 '500/bar-app'=...
 ```
 
-
+**Note:** vec2checkd will throw an error if it detects duplicate performance data labels and not send the passive check result. This is basically a safety measure as mixing up performance data labels might mess with your data further downstream.
