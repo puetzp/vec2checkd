@@ -22,7 +22,7 @@ The content of each section is further explained below.
 
 First of all some clarifications how PromQL query results are mapped to passive Icinga check results:
 
-* The overall "exit status", that is the Icinga host/service state is determined by comparing the value of each vector in the PromQL query result set with warning and critical thresholds. The most significant individual status determines the overall status (e.g. when ONE value lies within a critical threshold, the overall exit status is 2 => DOWN|CRITICAL).
+* The overall "exit status", that is the Icinga host/service state is determined by comparing the value of each vector in the PromQL query result set with warning and critical thresholds. The most significant individual status determines the overall status (e.g. when ONE value lies within a critical threshold, the overall exit status is => "DOWN" / "CRITICAL").
 * A passive check result can update eiher an Icinga host object (when _only_ the host name was provided in the mapping) or a service object (when _both_ the host name and service name were provided).
 
 ### Prometheus
@@ -126,7 +126,7 @@ mappings:
       uom: '<custom_unit_of_measurement>'
 ```
 
-Some of these parameters may need to be explained further:
+Some of these parameters are further explained in the following sections:
 
 * On valid **Nagios ranges** see [Nagios development guidelines](https://nagios-plugins.org/doc/guidelines.html#THRESHOLDFORMAT) or [Icinga2 documentation](https://icinga.com/docs/icinga-2/latest/doc/05-service-monitoring/#threshold-ranges)
 * On **plugin output** and customization see [this document](plugin_output.md)

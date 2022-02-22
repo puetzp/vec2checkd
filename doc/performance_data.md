@@ -1,7 +1,7 @@
 # Details on performance data
 
 _Performance data_ can optionally be sent to Icinga as part of the passive check result if it is enabled in the _mapping_.
-Performance data as defined in [the Nagios dev. guidelines](https://nagios-plugins.org/doc/guidelines.html#AEN200) and [the Icinga2 doc.](https://icinga.com/docs/icinga-2/latest/doc/05-service-monitoring/#performance-data-metrics) has the following general format:
+Performance data (as defined in [the Nagios dev. guidelines](https://nagios-plugins.org/doc/guidelines.html#AEN200) and [the Icinga2 doc.](https://icinga.com/docs/icinga-2/latest/doc/05-service-monitoring/#performance-data-metrics)) has the following general format:
 
 ```
 '<label>'=<value><uom>;<warn>;<crit>;;
