@@ -100,7 +100,8 @@ The _context_ in this case is a single object that contains all the information 
 }
 ```
 
-**Note:** The context differs slightly when it is used to render output for Icinga host objects. In this case it does not contain **is_ok**, **is_warning** and **is_critical** but **is_up** and **is_down**
+**Note:** The context differs slightly when it is used to render output for Icinga host objects. In this case it does not contain **is_ok**, **is_warning** and **is_critical**, but **is_up** and **is_down**. Please see [the specifics on templating](templating.md) for the implications this might have.
+
 
 Using the context above translates the following mapping:
 
@@ -141,3 +142,4 @@ mappings:
 
 [DOWN] Kubelet on worker1 is not ready
 ```
+
