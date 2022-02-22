@@ -105,7 +105,7 @@ mappings:
     thresholds:
       warning: '@200'
       critical: '@100'
-    plugin_output: '[{{ state }}] Nginx ingress controller processes {{ truncate prec=2 data.0.value }} requests per second (HTTP 2xx)'
+    plugin_output: '[{{ exit_status }}] Nginx ingress controller processes {{ truncate prec=2 data.0.value }} requests per second (HTTP 2xx)'
     performance_data:
       enabled: true
       label: 'requests'
