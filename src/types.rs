@@ -157,6 +157,12 @@ impl<'a> PluginOutputRenderContext<'a> {
     }
 }
 
+/// This is just a helper type that is created from the original
+/// data type returned as part of the PromQL query result.
+/// It only stores the label set and the value and discards
+/// everything else.
+/// This type is also necessary to facilitate proper unit tests as
+/// `prometheus_http_query::response::InstantVector` is private.
 #[derive(Debug)]
 pub(crate) struct TimeSeries<'a> {
     pub labels: &'a HashMap<String, String>,
@@ -164,6 +170,7 @@ pub(crate) struct TimeSeries<'a> {
 }
 
 impl<'a> TimeSeries<'a> {
+    /// Create a `TimeSeries` from `prometheus_http_query::response::InstantVector`.
     pub(crate) fn from(instant_vector: &'a prometheus_http_query::response::InstantVector) -> Self {
         TimeSeries {
             labels: instant_vector.metric(),
@@ -203,6 +210,11 @@ pub(crate) struct Data<'a> {
 }
 
 impl<'a> Data<'a> {
+    /// Create a `Data` point from a `TimeSeries` and additional data.
+    /// The newly created data point simply extends the time
+    /// series data with the "check data" that resulted from
+    /// e.g. comparing the value of a time series with the
+    /// configured thresholds.
     pub(crate) fn from(
         updates_service: bool,
         time_series: TimeSeries<'a>,
@@ -297,6 +309,10 @@ mod tests {
     fn test_data_init_for_host_object() {
         let mut labels = HashMap::new();
         labels.insert("test_label".to_string(), "test_value".to_string());
+        let time_series = TimeSeries {
+            labels: &labels,
+            value: 5.0,
+        };
         let result = Data {
             labels: &labels,
             value: 5.0,
@@ -305,12 +321,12 @@ mod tests {
             is_critical: None,
             is_up: Some(true),
             is_down: Some(false),
-            real_exit_value: Some(0),
-            temp_exit_value: Some(0),
-            exit_status: Some("UP".to_string()),
+            real_exit_value: 0,
+            temp_exit_value: 0,
+            exit_status: "UP".to_string(),
         };
         assert_eq!(
-            Data::from(false, &labels, 5.0, 0, 0, "UP".to_string()),
+            Data::from(false, time_series, 0, 0, "UP".to_string()),
             result
         );
     }
@@ -319,6 +335,10 @@ mod tests {
     fn test_data_init_for_service_object() {
         let mut labels = HashMap::new();
         labels.insert("test_label".to_string(), "test_value".to_string());
+        let time_series = TimeSeries {
+            labels: &labels,
+            value: 5.0,
+        };
         let result = Data {
             labels: &labels,
             value: 5.0,
@@ -327,12 +347,12 @@ mod tests {
             is_critical: Some(false),
             is_up: None,
             is_down: None,
-            real_exit_value: Some(0),
-            temp_exit_value: Some(0),
-            exit_status: Some("OK".to_string()),
+            real_exit_value: 0,
+            temp_exit_value: 0,
+            exit_status: "OK".to_string(),
         };
         assert_eq!(
-            Data::from(true, &labels, 5.0, 0, 0, "OK".to_string()),
+            Data::from(true, time_series, 0, 0, "OK".to_string()),
             result
         );
     }

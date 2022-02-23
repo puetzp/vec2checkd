@@ -63,7 +63,7 @@ fn process_time_series<'a>(
         .collect::<Vec<Data<'a>>>()
 }
 
-/// Convert a PromQL query result (array of instant vectors) to the three major parts
+/// Convert a PromQL query result (array of instant vectors/time series) to the three major parts
 /// that make up an Icinga check result: the plugin output, exit value and optionally
 /// an array of performance data.
 fn process_query_result(
