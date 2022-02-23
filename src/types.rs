@@ -2,6 +2,7 @@ use nagios_range::NagiosRange;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::default::Default;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -156,6 +157,21 @@ impl<'a> PluginOutputRenderContext<'a> {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct TimeSeries<'a> {
+    pub labels: &'a HashMap<String, String>,
+    pub value: f64,
+}
+
+impl<'a> TimeSeries<'a> {
+    pub(crate) fn from(instant_vector: &'a prometheus_http_query::response::InstantVector) -> Self {
+        TimeSeries {
+            labels: instant_vector.metric(),
+            value: instant_vector.sample().value(),
+        }
+    }
+}
+
 /// `Data` points are computed from each time series returned by
 /// a PromQL query. Each contains individual exit values and
 /// status (not to be conflated with the global exit value and
@@ -189,15 +205,14 @@ pub(crate) struct Data<'a> {
 impl<'a> Data<'a> {
     pub(crate) fn from(
         updates_service: bool,
-        labels: &'a HashMap<String, String>,
-        value: f64,
+        time_series: TimeSeries<'a>,
         real_exit_value: u8,
         temp_exit_value: u8,
         exit_status: String,
     ) -> Self {
         Data {
-            labels,
-            value,
+            labels: time_series.labels,
+            value: time_series.value,
             is_ok: if updates_service {
                 Some(real_exit_value == 0)
             } else {
@@ -223,9 +238,9 @@ impl<'a> Data<'a> {
             } else {
                 Some(real_exit_value == 1)
             },
-            real_exit_value,
-            temp_exit_value,
-            exit_status,
+            real_exit_value: real_exit_value,
+            temp_exit_value: temp_exit_value,
+            exit_status: exit_status,
         }
     }
 }
@@ -290,9 +305,9 @@ mod tests {
             is_critical: None,
             is_up: Some(true),
             is_down: Some(false),
-            real_exit_value: 0,
-            temp_exit_value: 0,
-            exit_status: "UP".to_string(),
+            real_exit_value: Some(0),
+            temp_exit_value: Some(0),
+            exit_status: Some("UP".to_string()),
         };
         assert_eq!(
             Data::from(false, &labels, 5.0, 0, 0, "UP".to_string()),
@@ -312,9 +327,9 @@ mod tests {
             is_critical: Some(false),
             is_up: None,
             is_down: None,
-            real_exit_value: 0,
-            temp_exit_value: 0,
-            exit_status: "OK".to_string(),
+            real_exit_value: Some(0),
+            temp_exit_value: Some(0),
+            exit_status: Some("OK".to_string()),
         };
         assert_eq!(
             Data::from(true, &labels, 5.0, 0, 0, "OK".to_string()),

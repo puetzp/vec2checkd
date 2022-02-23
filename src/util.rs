@@ -1,9 +1,8 @@
 use crate::icinga;
-use crate::types::{Data, Mapping};
+use crate::types::{Data, Mapping, TimeSeries};
 use anyhow::anyhow;
 use anyhow::Context;
 use log::debug;
-use prometheus_http_query::response::InstantVector;
 use std::num::FpCategory;
 use std::time::{Duration, SystemTime};
 
@@ -37,33 +36,117 @@ pub(crate) fn truncate_to_string(value: f64) -> String {
     }
 }
 
-/// Take the PromQL query result (set of time series) and convert them to
-/// `Data` points. These data are just enriched presentations of each time
-/// series containing exit values and status that are relevant to process
-/// a final passive check result.
+/// Convert each time series to a set of data points that contains the
+/// complete time series data and additional "check data" on top, i.e.
+/// exit value, exit status and some helper variables that are useful
+/// in the context of templating.
 #[inline]
-fn convert_query_result<'a>(
+fn process_time_series<'a>(
     mapping: &'a Mapping,
-    instant_vectors: &'a [InstantVector],
+    time_series: Vec<TimeSeries<'a>>,
 ) -> Vec<Data<'a>> {
-    let mut result = vec![];
+    time_series
+        .into_iter()
+        .map(|ts| {
+            let value = ts.value;
+            let (real_exit_value, temp_exit_value) = icinga::check_thresholds(mapping, value);
+            let updates_service = mapping.service.is_some();
+            let exit_status = icinga::exit_value_to_status(updates_service, &temp_exit_value);
+            Data::from(
+                updates_service,
+                ts,
+                real_exit_value,
+                temp_exit_value,
+                exit_status,
+            )
+        })
+        .collect::<Vec<Data<'a>>>()
+}
 
-    for instant_vector in instant_vectors {
-        let value = instant_vector.sample().value();
-        let (real_exit_value, temp_exit_value) = icinga::check_thresholds(mapping, value);
-        let exit_status = icinga::exit_value_to_status(mapping.service.as_ref(), &temp_exit_value);
-        let data = Data::from(
-            mapping.service.is_some(),
-            instant_vector.metric(),
-            value,
-            real_exit_value,
-            temp_exit_value,
-            exit_status,
+/// Convert a PromQL query result (array of instant vectors) to the three major parts
+/// that make up an Icinga check result: the plugin output, exit value and optionally
+/// an array of performance data.
+fn process_query_result(
+    mapping: &Mapping,
+    time_series: Vec<TimeSeries>,
+) -> Result<(String, u8, Option<Vec<String>>), anyhow::Error> {
+    // Process real and temporary exit values and exit status for each time series in
+    // the query result set and store them together in a structure.
+    let data: Vec<Data> = process_time_series(&mapping, time_series);
+
+    // Compute the performance data corresponding to each time series.
+    let performance_data = if mapping.performance_data.enabled {
+        Some(icinga::format_performance_data(&mapping, &data)?)
+    } else {
+        None
+    };
+
+    // This is the "real" exit value that is ultimately sent as part of the
+    // payload sent to the Icinga API. The exit value is the highest from the
+    // set of all individual "real" exit values that were computed for each
+    // data point.
+    let overall_real_exit_value = data
+        .iter()
+        .max_by(|x, y| x.real_exit_value.cmp(&y.real_exit_value))
+        .unwrap()
+        .real_exit_value;
+
+    // This is a "temporary" exit value computed from the highest from
+    // the set of all individual "temp" exit values of each data point.
+    // The "temp" exit value is the same as the "real" exit value when
+    // the mapping corresponds to an Icinga service object but differs
+    // for host objects. That is because the service states (0-3) are
+    // in this case collapsed to two states (0 and 1) but we need the
+    // full range of states (0-3) to produce a more meaningful output
+    // that is aware of possibly breached warning and critical thresholds.
+    // As such the "temp" value is dropped after computing the default
+    // output.
+    let overall_temp_exit_value = data
+        .iter()
+        .max_by(|x, y| x.temp_exit_value.cmp(&y.temp_exit_value))
+        .unwrap()
+        .temp_exit_value;
+
+    // The overall exit status associated with the "temporary exit value".
+    // One of "OK", "CRITICAL, "WARNING", "UNKNOWN" for Icinga services.
+    // One of "UP", "DOWN" for Icinga hosts.
+    let overall_exit_status =
+        icinga::exit_value_to_status(mapping.service.is_some(), &overall_temp_exit_value);
+
+    // Compute a plugin output either from a handlebars template (if any) or
+    // fall back to generic default outputs.
+    let plugin_output = if let Some(ref template) = mapping.plugin_output {
+        debug!(
+            "'{}': Build the plugin output from the following handlebars template: {}",
+            mapping.name, template
         );
-        result.push(data);
-    }
-
-    result
+        icinga::plugin_output::format_from_template(
+            template,
+            &mapping,
+            data,
+            overall_real_exit_value,
+            overall_exit_status,
+        )?
+    } else {
+        if data.len() == 1 {
+            let value = data.first().unwrap().value;
+            icinga::plugin_output::format_default_single_item(
+                &mapping,
+                value,
+                overall_temp_exit_value,
+                overall_exit_status,
+            )
+        } else {
+            let values: Vec<&f64> = data.iter().map(|d| &d.value).collect();
+            icinga::plugin_output::format_default_multiple_items(
+                &mapping,
+                &values,
+                overall_temp_exit_value,
+                overall_exit_status,
+            )
+        }
+    };
+    Ok((plugin_output, overall_real_exit_value, performance_data))
 }
 
 /// This function performs all necessary steps to execute a PromQL query, process
@@ -111,83 +194,11 @@ pub(crate) async fn execute_task(
             let performance_data = None;
             (plugin_output, overall_exit_value, performance_data)
         } else {
-            // Process real and temporary exit values and exit status for each time series in
-            // the query result set and store them together in a structure.
-            let data: Vec<Data> = convert_query_result(&mapping, instant_vectors);
-
-            // Compute the performance data corresponding to each time series.
-            let performance_data = if mapping.performance_data.enabled {
-                Some(icinga::format_performance_data(&mapping, &data)?)
-            } else {
-                None
-            };
-
-            // This is the "real" exit value that is ultimately sent as part of the
-            // payload sent to the Icinga API. The exit value is the highest from the
-            // set of all individual "real" exit values that were computed for each
-            // data point.
-            let overall_real_exit_value = data
+            let time_series: Vec<TimeSeries> = instant_vectors
                 .iter()
-                .max_by(|x, y| x.real_exit_value.cmp(&y.real_exit_value))
-                .unwrap()
-                .real_exit_value;
-
-            // This is a "temporary" exit value computed from the highest from
-            // the set of all individual "temp" exit values of each data point.
-            // The "temp" exit value is the same as the "real" exit value when
-            // the mapping corresponds to an Icinga service object but differs
-            // for host objects. That is because the service states (0-3) are
-            // in this case collapsed to two states (0 and 1) but we need the
-            // full range of states (0-3) to produce a more meaningful output
-            // that is aware of possibly breached warning and critical thresholds.
-            // As such the "temp" value is dropped after computing the default
-            // output.
-            let overall_temp_exit_value = data
-                .iter()
-                .max_by(|x, y| x.temp_exit_value.cmp(&y.temp_exit_value))
-                .unwrap()
-                .temp_exit_value;
-
-            // The overall exit status associated with the "temporary exit value".
-            // One of "OK", "CRITICAL, "WARNING", "UNKNOWN" for Icinga services.
-            // One of "UP", "DOWN" for Icinga hosts.
-            let overall_exit_status =
-                icinga::exit_value_to_status(mapping.service.as_ref(), &overall_temp_exit_value);
-
-            // Compute a plugin output either from a handlebars template (if any) or
-            // fall back to generic default outputs.
-            let plugin_output = if let Some(ref template) = mapping.plugin_output {
-                debug!(
-                    "'{}': Build the plugin output from the following handlebars template: {}",
-                    mapping.name, template
-                );
-                icinga::plugin_output::format_from_template(
-                    template,
-                    &mapping,
-                    data,
-                    overall_real_exit_value,
-                    overall_exit_status,
-                )?
-            } else {
-                if data.len() == 1 {
-                    let value = data.first().unwrap().value;
-                    icinga::plugin_output::format_default_single_item(
-                        &mapping,
-                        value,
-                        overall_temp_exit_value,
-                        overall_exit_status,
-                    )
-                } else {
-                    let values: Vec<&f64> = data.iter().map(|d| &d.value).collect();
-                    icinga::plugin_output::format_default_multiple_items(
-                        &mapping,
-                        &values,
-                        overall_temp_exit_value,
-                        overall_exit_status,
-                    )
-                }
-            };
-            (plugin_output, overall_real_exit_value, performance_data)
+                .map(|v| TimeSeries::from(v))
+                .collect();
+            process_query_result(&mapping, time_series)?
         };
 
         let exec_end = get_unix_timestamp()

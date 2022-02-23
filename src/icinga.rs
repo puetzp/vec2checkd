@@ -378,31 +378,31 @@ pub(crate) fn check_thresholds(mapping: &Mapping, value: f64) -> (u8, u8) {
 
 /// Basic Nagios stuff. A particular exit status is associated with a given
 /// state. The state differs for host and service objects.
-pub(crate) fn exit_value_to_status(service: Option<&String>, exit_value: &u8) -> String {
+pub(crate) fn exit_value_to_status(updates_service: bool, exit_value: &u8) -> String {
     match exit_value {
         3 => {
-            if service.is_some() {
+            if updates_service {
                 "UNKNOWN".to_string()
             } else {
                 "DOWN".to_string()
             }
         }
         2 => {
-            if service.is_some() {
+            if updates_service {
                 "CRITICAL".to_string()
             } else {
                 "DOWN".to_string()
             }
         }
         1 => {
-            if service.is_some() {
+            if updates_service {
                 "WARNING".to_string()
             } else {
                 "UP".to_string()
             }
         }
         0 => {
-            if service.is_some() {
+            if updates_service {
                 "OK".to_string()
             } else {
                 "UP".to_string()
