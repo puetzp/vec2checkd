@@ -250,9 +250,9 @@ impl<'a> Data<'a> {
             } else {
                 Some(real_exit_value == 1)
             },
-            real_exit_value: real_exit_value,
-            temp_exit_value: temp_exit_value,
-            exit_status: exit_status,
+            real_exit_value,
+            temp_exit_value,
+            exit_status,
         }
     }
 }

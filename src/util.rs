@@ -72,11 +72,11 @@ fn process_query_result(
 ) -> Result<(String, u8, Option<Vec<String>>), anyhow::Error> {
     // Process real and temporary exit values and exit status for each time series in
     // the query result set and store them together in a structure.
-    let data: Vec<Data> = process_time_series(&mapping, time_series);
+    let data: Vec<Data> = process_time_series(mapping, time_series);
 
     // Compute the performance data corresponding to each time series.
     let performance_data = if mapping.performance_data.enabled {
-        Some(icinga::format_performance_data(&mapping, &data)?)
+        Some(icinga::format_performance_data(mapping, &data)?)
     } else {
         None
     };
@@ -115,35 +115,38 @@ fn process_query_result(
 
     // Compute a plugin output either from a handlebars template (if any) or
     // fall back to generic default outputs.
-    let plugin_output = if let Some(ref template) = mapping.plugin_output {
-        debug!(
-            "'{}': Build the plugin output from the following handlebars template: {}",
-            mapping.name, template
-        );
-        icinga::plugin_output::format_from_template(
-            template,
-            &mapping,
-            data,
-            overall_real_exit_value,
-            overall_exit_status,
-        )?
-    } else {
-        if data.len() == 1 {
-            let value = data.first().unwrap().value;
-            icinga::plugin_output::format_default_single_item(
-                &mapping,
-                value,
-                overall_temp_exit_value,
+    let plugin_output = match mapping.plugin_output {
+        Some(ref template) => {
+            debug!(
+                "'{}': Build the plugin output from the following handlebars template: {}",
+                mapping.name, template
+            );
+            icinga::plugin_output::format_from_template(
+                template,
+                mapping,
+                data,
+                overall_real_exit_value,
                 overall_exit_status,
-            )
-        } else {
-            let values: Vec<&f64> = data.iter().map(|d| &d.value).collect();
-            icinga::plugin_output::format_default_multiple_items(
-                &mapping,
-                &values,
-                overall_temp_exit_value,
-                overall_exit_status,
-            )
+            )?
+        }
+        None => {
+            if data.len() == 1 {
+                let value = data.first().unwrap().value;
+                icinga::plugin_output::format_default_single_item(
+                    mapping,
+                    value,
+                    overall_temp_exit_value,
+                    overall_exit_status,
+                )
+            } else {
+                let values: Vec<&f64> = data.iter().map(|d| &d.value).collect();
+                icinga::plugin_output::format_default_multiple_items(
+                    mapping,
+                    &values,
+                    overall_temp_exit_value,
+                    overall_exit_status,
+                )
+            }
         }
     };
     Ok((plugin_output, overall_real_exit_value, performance_data))
@@ -194,10 +197,8 @@ pub(crate) async fn execute_task(
             let performance_data = None;
             (plugin_output, overall_exit_value, performance_data)
         } else {
-            let time_series: Vec<TimeSeries> = instant_vectors
-                .iter()
-                .map(|v| TimeSeries::from(v))
-                .collect();
+            let time_series: Vec<TimeSeries> =
+                instant_vectors.iter().map(TimeSeries::from).collect();
             process_query_result(&mapping, time_series)?
         };
 
