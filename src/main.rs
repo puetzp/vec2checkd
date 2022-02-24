@@ -104,72 +104,55 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     };
 
-    info!("Execute every check once regardless of the configured intervals");
-    for mapping in mappings.iter_mut() {
-        let task_start = Instant::now();
-
-        debug!(
-            "{}: update last application clock time, set to {:?}",
-            mapping.name, task_start
-        );
-
-        mapping.last_apply = task_start;
-
-        match execute_task(prom_client.clone(), icinga_client.clone(), mapping.clone()).await {
-            Ok(Ok(())) => debug!(
-                "'{}': task finished in {} millisecond(s); next execution in ~{} second(s)",
-                mapping.name,
-                task_start.elapsed().as_millis(),
-                compute_delta(mapping).as_secs()
-            ),
-            Ok(Err(err)) => error!(
-                "'{}': failed to finish task: {}; next execution in ~{} second(s)",
-                mapping.name,
-                err.root_cause(),
-                compute_delta(mapping).as_secs()
-            ),
-            Err(err) => error!(
-                "'{}': failed to finish task: {}; next execution in ~{} second(s)",
-                mapping.name,
-                err,
-                compute_delta(mapping).as_secs()
-            ),
-        }
-    }
-
-    info!("Enter the periodic check loop");
+    info!("Execute every check once regardless of the configured intervals and then enter the periodic check loop");
+    let mut initial_check = true;
     loop {
-        let sleep_secs = mappings.iter().map(compute_delta).min().unwrap();
-
-        std::thread::sleep(sleep_secs);
-
         for mapping in mappings
             .iter_mut()
-            .filter(|mapping| compute_delta(mapping).as_secs() <= 1)
+            .filter(|mapping| compute_delta(mapping).as_secs() <= 1 || initial_check)
         {
             let task_start = Instant::now();
 
             debug!(
-                "{}: update last application clock time, set to {:?}",
+                "{}: update last check time, set to {:?}",
                 mapping.name, task_start
             );
 
             mapping.last_apply = task_start;
 
             match execute_task(prom_client.clone(), icinga_client.clone(), mapping.clone()).await {
-                Ok(Ok(())) => debug!(
-                    "'{}': task finished in {} millisecond(s), next execution in ~{} second(s)",
-                    mapping.name,
-                    task_start.elapsed().as_millis(),
-                    compute_delta(mapping).as_secs()
-                ),
-                Ok(Err(e)) => error!(
-                    "'{}': failed to finish task: {}",
-                    mapping.name,
-                    e.root_cause()
-                ),
-                Err(e) => error!("'{}': failed to finish task: {}", mapping.name, e),
+                Ok(Ok(())) => {
+                    debug!(
+                        "'{}': check finished in {} millisecond(s)",
+                        mapping.name,
+                        task_start.elapsed().as_millis()
+                    );
+                    debug!(
+                        "'{}': next check in ~{} second(s)",
+                        mapping.name,
+                        compute_delta(mapping).as_secs()
+                    );
+                }
+                Ok(Err(err)) => {
+                    error!("'{}': failed to finish check: {:?}", mapping.name, err);
+                    debug!(
+                        "'{}': retry check in ~{} second(s)",
+                        mapping.name,
+                        compute_delta(mapping).as_secs()
+                    );
+                }
+                Err(err) => {
+                    error!("'{}': failed to finish check: {:?}", mapping.name, err);
+                    debug!(
+                        "'{}': retry check in ~{} second(s)",
+                        mapping.name,
+                        compute_delta(mapping).as_secs()
+                    );
+                }
             }
         }
+        initial_check = false;
+        let sleep_secs = mappings.iter().map(compute_delta).min().unwrap();
+        std::thread::sleep(sleep_secs);
     }
 }
