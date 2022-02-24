@@ -31,11 +31,25 @@ impl IcingaClient {
             IcingaAuth::X509(auth) => {
                 let identity = {
                     let mut buf = Vec::new();
-                    debug!("Read client certificate (PEM) from {:?}", auth.client_cert);
-                    File::open(&auth.client_cert)?.read_to_end(&mut buf)?;
-                    debug!("Read client key (PEM) from {:?}", auth.client_key);
-                    File::open(&auth.client_key)?.read_to_end(&mut buf)?;
-                    Identity::from_pem(&buf)?
+                    debug!("Read client certificate from {:?}", auth.client_cert);
+                    File::open(&auth.client_cert)
+                        .with_context(|| {
+                            format!(
+                                "failed to read client certificate from {:?}",
+                                auth.client_cert
+                            )
+                        })?
+                        .read_to_end(&mut buf)?;
+
+                    debug!("Read client key from {:?}", auth.client_key);
+                    File::open(&auth.client_key)
+                        .with_context(|| {
+                            format!("failed to read client key from {:?}", auth.client_key)
+                        })?
+                        .read_to_end(&mut buf)?;
+
+                    Identity::from_pem(&buf)
+                        .with_context(|| "failed to parse client certificate and/or key as PEM")?
                 };
 
                 reqwest::Client::builder().identity(identity)
@@ -49,9 +63,12 @@ impl IcingaClient {
         if let Some(cert) = &config.ca_cert {
             let cert_obj = {
                 let mut buf = Vec::new();
-                debug!("Read CA certificate (PEM) from {:?}", cert);
-                File::open(&cert)?.read_to_end(&mut buf)?;
-                Certificate::from_pem(&buf)?
+                debug!("Read CA certificate from {:?}", cert);
+                File::open(&cert)
+                    .with_context(|| format!("failed to read CA certificate from {:?}", cert))?
+                    .read_to_end(&mut buf)?;
+                Certificate::from_pem(&buf)
+                    .with_context(|| "failed to parse CA certificate as PEM")?
             };
 
             builder = builder.add_root_certificate(cert_obj);

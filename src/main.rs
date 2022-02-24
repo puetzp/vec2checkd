@@ -79,8 +79,15 @@ async fn main() -> Result<(), anyhow::Error> {
         let c = config::parse_prom_section(&config)
             .with_context(|| "failed to parse Prometheus section from configuration")?;
         info!("Initialize Prometheus API client");
-        PromClient::from_str(&c.host)
-            .with_context(|| "failed to initialize Prometheus API client")?
+        match PromClient::from_str(&c.host)
+            .with_context(|| "failed to initialize Prometheus API client")
+        {
+            Ok(clt) => clt,
+            Err(e) => {
+                error!("{:?}", e);
+                std::process::exit(1)
+            }
+        }
     };
 
     let icinga_client = {
@@ -88,7 +95,13 @@ async fn main() -> Result<(), anyhow::Error> {
         let c = config::parse_icinga_section(&config)
             .with_context(|| "failed to parse Icinga section from configuration")?;
         info!("Initialize Icinga API client");
-        IcingaClient::new(&c).with_context(|| "failed to initialize Icinga API client")?
+        match IcingaClient::new(&c).with_context(|| "failed to initialize Icinga API client") {
+            Ok(clt) => clt,
+            Err(e) => {
+                error!("{:?}", e);
+                std::process::exit(1)
+            }
+        }
     };
 
     info!("Execute every check once regardless of the configured intervals");
