@@ -9,7 +9,7 @@ use crate::icinga::*;
 use crate::types::Mapping;
 use crate::util::*;
 use gumdrop::Options;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use prometheus_http_query::Client as PromClient;
 use std::fs::File;
 use std::io::Read;
@@ -26,10 +26,7 @@ struct AppOptions {
     #[options(help = "print version", short = "v")]
     version: bool,
 
-    #[options(
-        help = "load configuration file from a path other than the default",
-        short = "c"
-    )]
+    #[options(help = "path to the configuration file", short = "c")]
     config: String,
 }
 
@@ -44,13 +41,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     env_logger::init();
 
-    info!("Starting vec2checkd version {}", &VERSION);
+    info!("Start vec2checkd version {}", &VERSION);
 
     let config = {
         info!("Parse configuration from '{}'", opts.config);
 
         if opts.config.is_empty() {
-            error!("Path to configuration file cannot be empty. Exiting");
+            error!("Path to configuration file cannot be empty. Exit");
             std::process::exit(1);
         }
 
@@ -58,7 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
             Ok(f) => f,
             Err(e) => {
                 error!(
-                    "failed to read configuration file '{}': {:#}",
+                    "Failed to read configuration file '{}': {:#}",
                     opts.config, e
                 );
                 std::process::exit(1);
@@ -72,7 +69,7 @@ async fn main() -> Result<(), anyhow::Error> {
             Ok(cfg) => cfg,
             Err(e) => {
                 error!(
-                    "failed to parse configuration file '{}': {:#}",
+                    "Failed to parse configuration file '{}': {:#}",
                     opts.config, e
                 );
                 std::process::exit(1);
@@ -84,18 +81,18 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut mappings: Vec<Mapping> = match config::parse_mappings(config.clone()) {
         Ok(m) => m,
         Err(e) => {
-            error!("failed to parse mappings from configuration: {:#}", e);
+            error!("Failed to parse mappings from configuration: {:#}", e);
             std::process::exit(1);
         }
     };
 
     if mappings.is_empty() {
-        info!("No mappings configured. Exiting.");
+        warn!("No mappings configured. Exit.");
         std::process::exit(0);
     }
 
     let prom_client = {
-        info!("Read Prometheus section from configuration");
+        info!("Read Prometheus section from configuration and initialize API client");
         let c = match config::parse_prom_section(&config) {
             Ok(c) => c,
             Err(e) => {
@@ -103,7 +100,6 @@ async fn main() -> Result<(), anyhow::Error> {
                 std::process::exit(1);
             }
         };
-        info!("Initialize Prometheus API client");
         match PromClient::from_str(&c.host) {
             Ok(clt) => clt,
             Err(e) => {
@@ -114,7 +110,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let icinga_client = {
-        info!("Read Icinga section from configuration");
+        info!("Read Icinga section from configuration and initialize API client");
         let c = match config::parse_icinga_section(&config) {
             Ok(c) => c,
             Err(e) => {
@@ -122,7 +118,6 @@ async fn main() -> Result<(), anyhow::Error> {
                 std::process::exit(1);
             }
         };
-        info!("Initialize Icinga API client");
         match IcingaClient::new(&c) {
             Ok(clt) => clt,
             Err(e) => {
@@ -139,11 +134,13 @@ async fn main() -> Result<(), anyhow::Error> {
             .iter_mut()
             .filter(|mapping| compute_delta(mapping).as_secs() <= 1 || initial_check)
         {
+            let context = &mapping.name;
+
             let task_start = Instant::now();
 
             debug!(
                 "{}: update last check time, set to {:?}",
-                mapping.name, task_start
+                context, task_start
             );
 
             mapping.last_apply = task_start;
@@ -152,28 +149,28 @@ async fn main() -> Result<(), anyhow::Error> {
                 Ok(Ok(())) => {
                     debug!(
                         "'{}': check finished in {} millisecond(s)",
-                        mapping.name,
+                        context,
                         task_start.elapsed().as_millis()
                     );
                     debug!(
                         "'{}': next check in ~{} second(s)",
-                        mapping.name,
+                        context,
                         compute_delta(mapping).as_secs()
                     );
                 }
                 Ok(Err(err)) => {
-                    error!("'{}': failed to finish check: {:?}", mapping.name, err);
+                    error!("'{}': failed to finish check: {:?}", context, err);
                     debug!(
                         "'{}': retry check in ~{} second(s)",
-                        mapping.name,
+                        context,
                         compute_delta(mapping).as_secs()
                     );
                 }
                 Err(err) => {
-                    error!("'{}': failed to finish check: {:?}", mapping.name, err);
+                    error!("'{}': failed to finish check: {:?}", context, err);
                     debug!(
                         "'{}': retry check in ~{} second(s)",
-                        mapping.name,
+                        context,
                         compute_delta(mapping).as_secs()
                     );
                 }
