@@ -77,7 +77,9 @@ impl IcingaClient {
         let client = builder.build()?;
 
         let url = {
-            let mut tmp_url = url::Url::parse(&config.host)?.as_str().to_string();
+            let mut tmp_url = url::Url::parse(&config.host)
+                .with_context(|| "failed to parse HTTP API URL")?
+                .to_string();
             tmp_url.push_str("v1/actions/process-check-result");
             tmp_url
         };
