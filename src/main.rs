@@ -29,7 +29,7 @@ struct AppOptions {
     version: bool,
 
     #[options(
-        help = "load configuration file from a path other than the default (/etc/vec2checkd/config.yaml)",
+        help = "load configuration file from a path other than the default",
         short = "c"
     )]
     config: Option<String>,
