@@ -3,7 +3,6 @@ use crate::types::{Data, Mapping, TimeSeries};
 use anyhow::anyhow;
 use anyhow::Context;
 use log::debug;
-use std::num::FpCategory;
 use std::time::{Duration, SystemTime};
 
 type TaskResult = Result<Result<(), anyhow::Error>, tokio::task::JoinError>;
@@ -23,17 +22,6 @@ pub(crate) fn get_unix_timestamp() -> Result<u64, anyhow::Error> {
         .as_secs();
 
     Ok(timestamp)
-}
-
-/// Converts a f64 to a String and truncates it at two decimals
-/// if there is a fractional part to increase readability of
-/// e.g. the default plugin outputs.
-#[inline]
-pub(crate) fn truncate_to_string(value: f64) -> String {
-    match &value.fract().classify() {
-        FpCategory::Zero => value.to_string(),
-        _ => format!("{:.2}", value),
-    }
 }
 
 /// Convert each time series to a set of data points that contains the
@@ -236,4 +224,196 @@ pub(crate) async fn execute_task(
         Ok(())
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::*;
+    use std::collections::HashMap;
+    use std::default::Default;
+    use std::time::Instant;
+
+    fn seed_labels() -> Vec<HashMap<String, String>> {
+        let mut label_set = vec![];
+        label_set.push({
+            HashMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "DiskPressure".to_string()),
+                ("node".to_string(), "worker-01".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
+
+        label_set.push({
+            HashMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "DiskPressure".to_string()),
+                ("node".to_string(), "worker-02".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
+
+        label_set.push({
+            HashMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "MemoryPressure".to_string()),
+                ("node".to_string(), "worker-01".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
+
+        label_set.push({
+            HashMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "MemoryPressure".to_string()),
+                ("node".to_string(), "worker-02".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
+
+        label_set.push({
+            HashMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "NetworkUnavailable".to_string()),
+                ("node".to_string(), "worker-01".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
+
+        label_set.push({
+            HashMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "NetworkUnavailable".to_string()),
+                ("node".to_string(), "worker-02".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
+
+        label_set.push({
+            HashMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "PIDPressure".to_string()),
+                ("node".to_string(), "worker-01".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
+
+        label_set.push({
+            HashMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "PIDPressure".to_string()),
+                ("node".to_string(), "worker-02".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
+        label_set
+    }
+
+    #[test]
+    fn test_process_query_result() {
+        let labels = seed_labels();
+
+        let time_series = vec![
+            TimeSeries {
+                labels: &labels[0],
+                value: 0.0,
+            },
+            TimeSeries {
+                labels: &labels[1],
+                value: 0.0,
+            },
+            TimeSeries {
+                labels: &labels[2],
+                value: 0.0,
+            },
+            TimeSeries {
+                labels: &labels[3],
+                value: 5.1238712,
+            },
+            TimeSeries {
+                labels: &labels[4],
+                value: 0.0,
+            },
+            TimeSeries {
+                labels: &labels[5],
+                value: 0.0,
+            },
+            TimeSeries {
+                labels: &labels[6],
+                value: 0.0,
+            },
+            TimeSeries {
+                labels: &labels[7],
+                value: 0.0,
+            },
+        ];
+
+        let mut mapping = Mapping {
+            name: "Node status".to_string(),
+            query: r#"kube_node_status_condition{cluster="production",condition!="Ready",status="true"}"#.to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: None,
+            },
+            host: "foo".to_string(),
+            service: Some("bar".to_string()),
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData {
+                enabled: false,
+                ..Default::default()
+            },
+        };
+
+        let expected_output =
+            "[OK] PromQL query returned multiple results in the range 0.00..=5.12".to_string();
+
+        // Test: Default output, multiple time series, OK, service object, no performance data.
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output, 0, None)
+        );
+
+        mapping.service = None;
+        let expected_output =
+            "[UP] PromQL query returned multiple results in the range 0.00..=5.12".to_string();
+
+        // Test: Default output, multiple time series, OK, host object, no performance data.
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output, 0, None)
+        );
+
+        let time_series = vec![TimeSeries {
+            labels: &labels[0],
+            value: 12.34534534,
+        }];
+
+        let expected_output = "[UP] PromQL query returned one result (12.35)".to_string();
+
+        // Test: Default output, single time series, OK, host object, no performance data.
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output, 0, None)
+        );
+
+        mapping.service = Some("bar".to_string());
+        let expected_output = "[OK] PromQL query returned one result (12.35)".to_string();
+
+        // Test: Default output, single time series, OK, service object, no performance data.
+        assert_eq!(
+            process_query_result(&mapping, time_series).unwrap(),
+            (expected_output, 0, None)
+        );
+    }
 }

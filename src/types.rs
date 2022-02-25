@@ -163,7 +163,7 @@ impl<'a> PluginOutputRenderContext<'a> {
 /// everything else.
 /// This type is also necessary to facilitate proper unit tests as
 /// `prometheus_http_query::response::InstantVector` is private.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct TimeSeries<'a> {
     pub labels: &'a HashMap<String, String>,
     pub value: f64,

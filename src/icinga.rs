@@ -1,6 +1,5 @@
 use crate::helpers;
 use crate::types::*;
-use crate::util;
 use anyhow::{bail, Context};
 use handlebars::Handlebars;
 use log::{debug, warn};
@@ -280,7 +279,6 @@ pub mod plugin_output {
         exit_status: String,
     ) -> String {
         debug!("'{}': Build default plugin output from the one and only item in the PromQL query result set", mapping.name);
-        let value = util::truncate_to_string(value);
         match exit_value {
             2 => {
                 // Can be unwrapped safely as exit status 2 is only possible when a
@@ -302,7 +300,7 @@ pub mod plugin_output {
             }
             0 => {
                 format!(
-                    "[{}] PromQL query returned one result ({})",
+                    "[{}] PromQL query returned one result ({:.2?})",
                     exit_status, value
                 )
             }
@@ -354,7 +352,7 @@ pub mod plugin_output {
             }
             0 => {
                 format!(
-                    "[{}] PromQL query returned multiple results in the range {:?}",
+                    "[{}] PromQL query returned multiple results in the range {:.2?}",
                     exit_status, value_range
                 )
             }
@@ -625,7 +623,7 @@ mod tests {
             plugin_output: None,
             performance_data: PerformanceData::default(),
         };
-        let result = "[UP] PromQL query returned one result (2)".to_string();
+        let result = "[UP] PromQL query returned one result (2.00)".to_string();
         assert_eq!(
             format_default_single_item(&mapping, 2.0, 0, "UP".to_string()),
             result
@@ -698,7 +696,7 @@ mod tests {
             plugin_output: None,
             performance_data: PerformanceData::default(),
         };
-        let result = "[OK] PromQL query returned one result (2)".to_string();
+        let result = "[OK] PromQL query returned one result (2.00)".to_string();
         assert_eq!(
             format_default_single_item(&mapping, 2.0, 0, "OK".to_string()),
             result
