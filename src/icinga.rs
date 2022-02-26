@@ -7,7 +7,7 @@ use md5::{Digest, Md5};
 use reqwest::{Certificate, Identity};
 use serde::Serialize;
 use std::boxed::Box;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
 
@@ -227,10 +227,10 @@ pub mod plugin_output {
     /// Replace placeholders in the "plugin output" (in nagios-speak) by interpreting
     /// and expanding the string with parameters from the check result.
     /// Note that this behaves almost exactly like `config::preformat_plugin_output`.
-    pub(crate) fn format_from_template<'a>(
+    pub(crate) fn format_from_template(
         template: &str,
         mapping: &Mapping,
-        data: Vec<Data<'a>>,
+        data: Vec<Data>,
         exit_value: u8,
         exit_status: String,
     ) -> Result<String, anyhow::Error> {
@@ -446,9 +446,9 @@ pub(crate) fn exit_value_to_status(updates_service: bool, exit_value: &u8) -> St
 /// See https://nagios-plugins.org/doc/guidelines.html#AEN200 for the
 /// expected format.
 #[inline]
-pub(crate) fn format_performance_data<'a>(
+pub(crate) fn format_performance_data(
     mapping: &Mapping,
-    data: &[Data<'a>],
+    data: &[Data],
 ) -> Result<Vec<String>, anyhow::Error> {
     let mut result = vec![];
     let mut unique_labels = HashSet::new();
@@ -463,7 +463,7 @@ pub(crate) fn format_performance_data<'a>(
         handlebars.register_helper("truncate", Box::new(helpers::truncate));
 
         for item in data.iter() {
-            let context = PerformanceDataRenderContext::from(mapping, item.labels);
+            let context = PerformanceDataRenderContext::from(mapping, &item.labels);
             let label = handlebars
                 .render_template(template, &context)
                 .with_context(|| "failed to render performance data from handlebars template using the given context")?;
@@ -477,14 +477,11 @@ pub(crate) fn format_performance_data<'a>(
         // in unique (and stable across queries) performance data labels.
         for item in data.iter() {
             let checksum = {
-                let ordered_metric = BTreeMap::from_iter(item.labels.iter());
-                let metric_str = ordered_metric
-                    .iter()
-                    .fold(String::new(), |mut acc, metric| {
-                        acc.push_str(metric.0);
-                        acc.push_str(metric.1);
-                        acc
-                    });
+                let metric_str = item.labels.iter().fold(String::new(), |mut acc, metric| {
+                    acc.push_str(metric.0);
+                    acc.push_str(metric.1);
+                    acc
+                });
                 let mut digest = format!("{:x}", Md5::digest(&metric_str));
                 digest.truncate(6);
                 digest
@@ -555,7 +552,7 @@ mod tests {
     use crate::icinga::*;
     use crate::types::{Mapping, ThresholdPair};
     use nagios_range::NagiosRange;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -721,11 +718,12 @@ mod tests {
         };
         let mut data = vec![];
 
-        let mut labels = HashMap::new();
-        labels.insert("some_label".to_string(), "some_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("some_label".to_string(), "some_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 5.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -738,11 +736,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("foo_label".to_string(), "foo_value".to_string());
-        labels.insert("bar_label".to_string(), "bar_value".to_string());
+        let labels = BTreeMap::from([
+            ("foo_label".to_string(), "foo_value".to_string()),
+            ("bar_label".to_string(), "bar_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 15.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -755,11 +754,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("test_label".to_string(), "test_value".to_string());
-        labels.insert("z_label".to_string(), "z_value".to_string());
+        let labels = BTreeMap::from([
+            ("test_label".to_string(), "test_value".to_string()),
+            ("z_label".to_string(), "z_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 20.5,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -803,11 +803,12 @@ mod tests {
         };
         let mut data = vec![];
 
-        let mut labels = HashMap::new();
-        labels.insert("some_label".to_string(), "some_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("some_label".to_string(), "some_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 5.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -820,11 +821,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("foo_label".to_string(), "foo_value".to_string());
-        labels.insert("bar_label".to_string(), "bar_value".to_string());
+        let labels = BTreeMap::from([
+            ("foo_label".to_string(), "foo_value".to_string()),
+            ("bar_label".to_string(), "bar_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 15.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -862,11 +864,12 @@ mod tests {
         };
         let mut data = vec![];
 
-        let mut labels = HashMap::new();
-        labels.insert("some_label".to_string(), "some_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("some_label".to_string(), "some_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 5.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -879,11 +882,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("some_label".to_string(), "foo_value".to_string());
-        labels.insert("bar_label".to_string(), "bar_value".to_string());
+        let labels = BTreeMap::from([
+            ("some_label".to_string(), "foo_value".to_string()),
+            ("bar_label".to_string(), "bar_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 15.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -927,11 +931,12 @@ mod tests {
 
         let mut data = vec![];
 
-        let mut labels = HashMap::new();
-        labels.insert("some_label".to_string(), "some_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("some_label".to_string(), "some_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 5.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -944,11 +949,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("some_label".to_string(), "some_value".to_string());
-        labels.insert("bar_label".to_string(), "bar_value".to_string());
+        let labels = BTreeMap::from([
+            ("some_label".to_string(), "some_value".to_string()),
+            ("bar_label".to_string(), "bar_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 5.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -981,11 +987,12 @@ mod tests {
             performance_data: PerformanceData::default(),
         };
 
-        let mut labels = HashMap::new();
-        labels.insert("some_label".to_string(), "some_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("some_label".to_string(), "some_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let data_item = Data {
-            labels: &labels,
+            labels,
             value: 5.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -1035,11 +1042,12 @@ mod tests {
         };
         let mut data = vec![];
 
-        let mut labels = HashMap::new();
-        labels.insert("known_label".to_string(), "foo_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("known_label".to_string(), "foo_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 5.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -1052,11 +1060,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("known_label".to_string(), "bar_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("known_label".to_string(), "bar_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 15.0,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -1069,11 +1078,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("known_label".to_string(), "value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("known_label".to_string(), "value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 25.55465123,
             is_ok: Some(true),
             is_warning: Some(false),
@@ -1129,11 +1139,12 @@ mod tests {
         };
         let mut data = vec![];
 
-        let mut labels = HashMap::new();
-        labels.insert("known_label".to_string(), "foo_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("known_label".to_string(), "foo_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 5.0,
             is_ok: None,
             is_warning: None,
@@ -1146,11 +1157,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("known_label".to_string(), "bar_value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("known_label".to_string(), "bar_value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 15.0,
             is_ok: None,
             is_warning: None,
@@ -1163,11 +1175,12 @@ mod tests {
         };
         data.push(d);
 
-        let mut labels = HashMap::new();
-        labels.insert("known_label".to_string(), "value".to_string());
-        labels.insert("another_label".to_string(), "another_value".to_string());
+        let labels = BTreeMap::from([
+            ("known_label".to_string(), "value".to_string()),
+            ("another_label".to_string(), "another_value".to_string()),
+        ]);
         let d = Data {
-            labels: &labels,
+            labels,
             value: 25.55465123,
             is_ok: None,
             is_warning: None,

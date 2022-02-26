@@ -1,7 +1,7 @@
 use nagios_range::NagiosRange;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::default::Default;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -63,16 +63,16 @@ pub(crate) struct PerformanceDataRenderContext<'a> {
     pub name: &'a str,
     pub host: &'a str,
     pub service: &'a Option<String>,
-    pub labels: &'a HashMap<String, String>,
+    pub labels: &'a BTreeMap<String, String>,
 }
 
 impl<'a> PerformanceDataRenderContext<'a> {
-    pub(crate) fn from(mapping: &'a Mapping, labels: &'a HashMap<String, String>) -> Self {
+    pub(crate) fn from(mapping: &'a Mapping, labels: &'a BTreeMap<String, String>) -> Self {
         PerformanceDataRenderContext {
             name: &mapping.name,
             host: &mapping.host,
             service: &mapping.service,
-            labels,
+            labels: &labels,
         }
     }
 }
@@ -95,7 +95,7 @@ pub(crate) struct PluginOutputRenderContext<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service: &'a Option<String>,
     pub interval: u64,
-    pub data: &'a [Data<'a>],
+    pub data: &'a [Data],
     pub exit_value: &'a u8,
     pub exit_status: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -113,7 +113,7 @@ pub(crate) struct PluginOutputRenderContext<'a> {
 impl<'a> PluginOutputRenderContext<'a> {
     pub(crate) fn from(
         mapping: &'a Mapping,
-        data: &'a [Data<'a>],
+        data: &'a [Data],
         exit_value: &'a u8,
         exit_status: &'a str,
     ) -> Self {
@@ -164,16 +164,21 @@ impl<'a> PluginOutputRenderContext<'a> {
 /// This type is also necessary to facilitate proper unit tests as
 /// `prometheus_http_query::response::InstantVector` is private.
 #[derive(Debug, Clone)]
-pub(crate) struct TimeSeries<'a> {
-    pub labels: &'a HashMap<String, String>,
+pub(crate) struct TimeSeries {
+    pub labels: BTreeMap<String, String>,
     pub value: f64,
 }
 
-impl<'a> TimeSeries<'a> {
+impl TimeSeries {
     /// Create a `TimeSeries` from `prometheus_http_query::response::InstantVector`.
-    pub(crate) fn from(instant_vector: &'a prometheus_http_query::response::InstantVector) -> Self {
+    pub(crate) fn from(instant_vector: &prometheus_http_query::response::InstantVector) -> Self {
         TimeSeries {
-            labels: instant_vector.metric(),
+            labels: BTreeMap::from_iter(
+                instant_vector
+                    .metric()
+                    .into_iter()
+                    .map(|(k, v)| (k.to_owned(), v.to_owned())),
+            ),
             value: instant_vector.sample().value(),
         }
     }
@@ -189,8 +194,8 @@ impl<'a> TimeSeries<'a> {
 /// not make sense in the context of an Icinga service object and
 /// `is_ok` does not make sense in the context of a host object.
 #[derive(Debug, Clone, Serialize, PartialEq)]
-pub(crate) struct Data<'a> {
-    pub labels: &'a HashMap<String, String>,
+pub(crate) struct Data {
+    pub labels: BTreeMap<String, String>,
     pub value: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_ok: Option<bool>,
@@ -209,7 +214,7 @@ pub(crate) struct Data<'a> {
     pub temp_exit_value: u8,
 }
 
-impl<'a> Data<'a> {
+impl Data {
     /// Create a `Data` point from a `TimeSeries` and additional data.
     /// The newly created data point simply extends the time
     /// series data with the "check data" that resulted from
@@ -217,7 +222,7 @@ impl<'a> Data<'a> {
     /// configured thresholds.
     pub(crate) fn from(
         updates_service: bool,
-        time_series: TimeSeries<'a>,
+        time_series: TimeSeries,
         real_exit_value: u8,
         temp_exit_value: u8,
         exit_status: String,
@@ -303,18 +308,18 @@ impl Default for PerformanceData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_data_init_for_host_object() {
-        let mut labels = HashMap::new();
+        let mut labels = BTreeMap::new();
         labels.insert("test_label".to_string(), "test_value".to_string());
         let time_series = TimeSeries {
-            labels: &labels,
+            labels: labels.clone(),
             value: 5.0,
         };
         let result = Data {
-            labels: &labels,
+            labels: labels,
             value: 5.0,
             is_ok: None,
             is_warning: None,
@@ -333,14 +338,14 @@ mod tests {
 
     #[test]
     fn test_data_init_for_service_object() {
-        let mut labels = HashMap::new();
+        let mut labels = BTreeMap::new();
         labels.insert("test_label".to_string(), "test_value".to_string());
         let time_series = TimeSeries {
-            labels: &labels,
+            labels: labels.clone(),
             value: 5.0,
         };
         let result = Data {
-            labels: &labels,
+            labels: labels,
             value: 5.0,
             is_ok: Some(true),
             is_warning: Some(false),

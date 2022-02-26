@@ -29,10 +29,7 @@ pub(crate) fn get_unix_timestamp() -> Result<u64, anyhow::Error> {
 /// exit value, exit status and some helper variables that are useful
 /// in the context of templating.
 #[inline]
-fn process_time_series<'a>(
-    mapping: &'a Mapping,
-    time_series: Vec<TimeSeries<'a>>,
-) -> Vec<Data<'a>> {
+fn process_time_series(mapping: &Mapping, time_series: Vec<TimeSeries>) -> Vec<Data> {
     time_series
         .into_iter()
         .map(|ts| {
@@ -48,7 +45,7 @@ fn process_time_series<'a>(
                 exit_status,
             )
         })
-        .collect::<Vec<Data<'a>>>()
+        .collect::<Vec<Data>>()
 }
 
 /// Convert a PromQL query result (array of instant vectors/time series) to the three major parts
@@ -230,24 +227,23 @@ pub(crate) async fn execute_task(
 mod tests {
     use super::*;
     use crate::types::*;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::default::Default;
     use std::time::Instant;
 
-    fn seed_labels() -> Vec<HashMap<String, String>> {
+    fn seed_labels() -> Vec<BTreeMap<String, String>> {
         let mut label_set = vec![];
-        label_set.push({
-            HashMap::from([
-                ("cluster".to_string(), "production".to_string()),
-                ("condition".to_string(), "DiskPressure".to_string()),
-                ("node".to_string(), "worker-01".to_string()),
-                ("namespace".to_string(), "monitoring".to_string()),
-                ("status".to_string(), "true".to_string()),
-            ])
-        });
+        let labels = BTreeMap::from([
+            ("cluster".to_string(), "production".to_string()),
+            ("condition".to_string(), "DiskPressure".to_string()),
+            ("node".to_string(), "worker-01".to_string()),
+            ("namespace".to_string(), "monitoring".to_string()),
+            ("status".to_string(), "true".to_string()),
+        ]);
+        label_set.push(labels);
 
         label_set.push({
-            HashMap::from([
+            BTreeMap::from([
                 ("cluster".to_string(), "production".to_string()),
                 ("condition".to_string(), "DiskPressure".to_string()),
                 ("node".to_string(), "worker-02".to_string()),
@@ -257,7 +253,7 @@ mod tests {
         });
 
         label_set.push({
-            HashMap::from([
+            BTreeMap::from([
                 ("cluster".to_string(), "production".to_string()),
                 ("condition".to_string(), "MemoryPressure".to_string()),
                 ("node".to_string(), "worker-01".to_string()),
@@ -267,7 +263,7 @@ mod tests {
         });
 
         label_set.push({
-            HashMap::from([
+            BTreeMap::from([
                 ("cluster".to_string(), "production".to_string()),
                 ("condition".to_string(), "MemoryPressure".to_string()),
                 ("node".to_string(), "worker-02".to_string()),
@@ -277,7 +273,7 @@ mod tests {
         });
 
         label_set.push({
-            HashMap::from([
+            BTreeMap::from([
                 ("cluster".to_string(), "production".to_string()),
                 ("condition".to_string(), "NetworkUnavailable".to_string()),
                 ("node".to_string(), "worker-01".to_string()),
@@ -287,7 +283,7 @@ mod tests {
         });
 
         label_set.push({
-            HashMap::from([
+            BTreeMap::from([
                 ("cluster".to_string(), "production".to_string()),
                 ("condition".to_string(), "NetworkUnavailable".to_string()),
                 ("node".to_string(), "worker-02".to_string()),
@@ -297,7 +293,7 @@ mod tests {
         });
 
         label_set.push({
-            HashMap::from([
+            BTreeMap::from([
                 ("cluster".to_string(), "production".to_string()),
                 ("condition".to_string(), "PIDPressure".to_string()),
                 ("node".to_string(), "worker-01".to_string()),
@@ -307,7 +303,7 @@ mod tests {
         });
 
         label_set.push({
-            HashMap::from([
+            BTreeMap::from([
                 ("cluster".to_string(), "production".to_string()),
                 ("condition".to_string(), "PIDPressure".to_string()),
                 ("node".to_string(), "worker-02".to_string()),
@@ -320,42 +316,16 @@ mod tests {
 
     #[test]
     fn test_process_query_result() {
-        let labels = seed_labels();
-
-        let time_series = vec![
-            TimeSeries {
-                labels: &labels[0],
-                value: 0.0,
-            },
-            TimeSeries {
-                labels: &labels[1],
-                value: 0.0,
-            },
-            TimeSeries {
-                labels: &labels[2],
-                value: 0.0,
-            },
-            TimeSeries {
-                labels: &labels[3],
-                value: 5.1238712,
-            },
-            TimeSeries {
-                labels: &labels[4],
-                value: 0.0,
-            },
-            TimeSeries {
-                labels: &labels[5],
-                value: 0.0,
-            },
-            TimeSeries {
-                labels: &labels[6],
-                value: 0.0,
-            },
-            TimeSeries {
-                labels: &labels[7],
-                value: 0.0,
-            },
-        ];
+        let label_set = seed_labels();
+        let values = [0.0, 0.0, 0.0, 5.1238712, 0.0, 0.0, 0.0, 0.0];
+        let time_series = label_set
+            .iter()
+            .zip(values.iter())
+            .map(|(labels, value)| TimeSeries {
+                labels: labels.clone(),
+                value: *value,
+            })
+            .collect::<Vec<TimeSeries>>();
 
         let mut mapping = Mapping {
             name: "Node status".to_string(),
@@ -395,7 +365,7 @@ mod tests {
         );
 
         let time_series = vec![TimeSeries {
-            labels: &labels[0],
+            labels: label_set[0].clone(),
             value: 12.34534534,
         }];
 
