@@ -576,9 +576,9 @@ dependencies = [
 
 [[package]]
 name = "nagios-range"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87a809889abf2159079a88e3b30e82f0351295f0184cb69be4e4d0479ad6df20"
+checksum = "0e739a5cd3516210c02494771db52a03c9c0a25e3bb4c17b3b2f785b0d01843c"
 
 [[package]]
 name = "native-tls"

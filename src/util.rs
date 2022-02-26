@@ -227,20 +227,52 @@ pub(crate) async fn execute_task(
 mod tests {
     use super::*;
     use crate::types::*;
+    use nagios_range::NagiosRange;
     use std::collections::BTreeMap;
     use std::default::Default;
     use std::time::Instant;
 
+    fn seed_mapping() -> Mapping {
+        Mapping {
+            name: "Node status".to_string(),
+            query: r#"kube_node_status_condition{cluster="production",condition!="Ready",status="true"}"#.to_string(),
+            thresholds: ThresholdPair {
+                warning: None,
+                critical: None,
+            },
+            host: "foo".to_string(),
+            service: None,
+            interval: Duration::from_secs(60),
+            last_apply: Instant::now(),
+            plugin_output: None,
+            performance_data: PerformanceData::default()
+        }
+    }
+
+    fn seed_checksums() -> Vec<String> {
+        vec![
+            "a98192".to_string(),
+            "1a618b".to_string(),
+            "638ae0".to_string(),
+            "c7358d".to_string(),
+            "6ed77d".to_string(),
+            "6d14de".to_string(),
+            "bcc77b".to_string(),
+            "8e38a1".to_string(),
+        ]
+    }
+
     fn seed_labels() -> Vec<BTreeMap<String, String>> {
         let mut label_set = vec![];
-        let labels = BTreeMap::from([
-            ("cluster".to_string(), "production".to_string()),
-            ("condition".to_string(), "DiskPressure".to_string()),
-            ("node".to_string(), "worker-01".to_string()),
-            ("namespace".to_string(), "monitoring".to_string()),
-            ("status".to_string(), "true".to_string()),
-        ]);
-        label_set.push(labels);
+        label_set.push({
+            BTreeMap::from([
+                ("cluster".to_string(), "production".to_string()),
+                ("condition".to_string(), "DiskPressure".to_string()),
+                ("node".to_string(), "worker-01".to_string()),
+                ("namespace".to_string(), "monitoring".to_string()),
+                ("status".to_string(), "true".to_string()),
+            ])
+        });
 
         label_set.push({
             BTreeMap::from([
@@ -315,8 +347,9 @@ mod tests {
     }
 
     #[test]
-    fn test_process_query_result() {
+    fn test_process_query_result_for_host_objects() {
         let label_set = seed_labels();
+        let checksums = seed_checksums();
         let values = [0.0, 0.0, 0.0, 5.1238712, 0.0, 0.0, 0.0, 0.0];
         let time_series = label_set
             .iter()
@@ -327,63 +360,315 @@ mod tests {
             })
             .collect::<Vec<TimeSeries>>();
 
-        let mut mapping = Mapping {
-            name: "Node status".to_string(),
-            query: r#"kube_node_status_condition{cluster="production",condition!="Ready",status="true"}"#.to_string(),
-            thresholds: ThresholdPair {
-                warning: None,
-                critical: None,
-            },
-            host: "foo".to_string(),
-            service: Some("bar".to_string()),
-            interval: Duration::from_secs(60),
-            last_apply: Instant::now(),
-            plugin_output: None,
-            performance_data: PerformanceData {
-                enabled: false,
-                ..Default::default()
-            },
-        };
-
-        let expected_output =
-            "[OK] PromQL query returned multiple results in the range 0.00..=5.12".to_string();
-
-        // Test: Default output, multiple time series, OK, service object, no performance data.
-        assert_eq!(
-            process_query_result(&mapping, time_series.clone()).unwrap(),
-            (expected_output, 0, None)
-        );
-
-        mapping.service = None;
-        let expected_output =
-            "[UP] PromQL query returned multiple results in the range 0.00..=5.12".to_string();
+        let mut mapping = seed_mapping();
 
         // Test: Default output, multiple time series, OK, host object, no performance data.
+        mapping.performance_data.enabled = false;
+        let expected_output =
+            "[UP] PromQL query returned multiple results in the range 0.00..=5.12".to_string();
         assert_eq!(
             process_query_result(&mapping, time_series.clone()).unwrap(),
-            (expected_output, 0, None)
+            (expected_output.clone(), 0, None)
         );
 
+        // Test: Default output, multiple time series, OK, host object, with performance data.
+        mapping.performance_data.enabled = true;
+        let perfdata = values
+            .iter()
+            .zip(checksums.iter())
+            .map(|(value, checksum)| format!("'{}/{}'={};;;;", mapping.name, checksum, value))
+            .collect::<Vec<String>>();
+        assert_eq!(
+            process_query_result(&mapping, time_series).unwrap(),
+            (expected_output, 0, Some(perfdata))
+        );
+
+        // Test: Default output, single time series, OK, host object, with performance data.
         let time_series = vec![TimeSeries {
             labels: label_set[0].clone(),
             value: 12.34534534,
         }];
-
         let expected_output = "[UP] PromQL query returned one result (12.35)".to_string();
-
-        // Test: Default output, single time series, OK, host object, no performance data.
+        let perfdata = vec![format!(
+            "'{}/{}'={};;;;",
+            mapping.name,
+            checksums[0].clone(),
+            12.34534534
+        )];
         assert_eq!(
             process_query_result(&mapping, time_series.clone()).unwrap(),
-            (expected_output, 0, None)
+            (expected_output, 0, Some(perfdata))
+        );
+    }
+
+    #[test]
+    fn test_process_query_result_for_service_objects() {
+        let label_set = seed_labels();
+        let checksums = seed_checksums();
+        let values = [0.0, 0.0, 0.0, 5.1238712, 0.0, 0.0, 0.0, 0.0];
+        let time_series = label_set
+            .iter()
+            .zip(values.iter())
+            .map(|(labels, value)| TimeSeries {
+                labels: labels.clone(),
+                value: *value,
+            })
+            .collect::<Vec<TimeSeries>>();
+
+        let mut mapping = seed_mapping();
+        mapping.service = Some("bar".to_string());
+
+        // Test: Default output, multiple time series, OK, service object, no performance data.
+        mapping.performance_data.enabled = false;
+        let expected_output =
+            "[OK] PromQL query returned multiple results in the range 0.00..=5.12".to_string();
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output.clone(), 0, None)
         );
 
-        mapping.service = Some("bar".to_string());
-        let expected_output = "[OK] PromQL query returned one result (12.35)".to_string();
-
-        // Test: Default output, single time series, OK, service object, no performance data.
+        // Test: Default output, multiple time series, OK, service object, with performance data.
+        mapping.performance_data.enabled = true;
+        mapping.thresholds.warning = Some(NagiosRange::from("@10:").unwrap());
+        let perfdata = values
+            .iter()
+            .zip(checksums.iter())
+            .map(|(value, checksum)| format!("'{}/{}'={};@10:~;;;", mapping.name, checksum, value))
+            .collect::<Vec<String>>();
         assert_eq!(
             process_query_result(&mapping, time_series).unwrap(),
-            (expected_output, 0, None)
+            (expected_output, 0, Some(perfdata))
+        );
+
+        // Test: Default output, single time series, OK, service object, with performance data.
+        let time_series = vec![TimeSeries {
+            labels: label_set[0].clone(),
+            value: 9.21837821321,
+        }];
+        mapping.thresholds.critical = Some(NagiosRange::from("10").unwrap());
+        let expected_output = "[OK] PromQL query returned one result (9.22)".to_string();
+        let perfdata = vec![format!(
+            "'{}/{}'={};@10:~;0:10;;",
+            mapping.name,
+            checksums[0].clone(),
+            9.21837821321
+        )];
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output, 0, Some(perfdata))
+        );
+    }
+
+    #[test]
+    fn test_process_query_result_for_host_objects_with_warning() {
+        let label_set = seed_labels();
+        let checksums = seed_checksums();
+        let values = [0.0, 0.0, 0.0, 5.1238712, 0.0, 0.0, 0.0, 0.0];
+        let time_series = label_set
+            .iter()
+            .zip(values.iter())
+            .map(|(labels, value)| TimeSeries {
+                labels: labels.clone(),
+                value: *value,
+            })
+            .collect::<Vec<TimeSeries>>();
+
+        let mut mapping = seed_mapping();
+        mapping.thresholds.warning = Some(NagiosRange::from("@10").unwrap());
+        mapping.thresholds.critical = Some(NagiosRange::from("20").unwrap());
+        mapping.performance_data.uom = Some("ms".to_string());
+
+        // Test: Default output, multiple time series, WARNING, host object, with performance data.
+        let expected_output = "[UP] PromQL query returned multiple results within the warning range (values 0.00..=5.12 overlap with @0:10)".to_string();
+        let perfdata = values
+            .iter()
+            .zip(checksums.iter())
+            .map(|(value, checksum)| {
+                format!("'{}/{}'={}ms;@0:10;0:20;;", mapping.name, checksum, value)
+            })
+            .collect::<Vec<String>>();
+        assert_eq!(
+            process_query_result(&mapping, time_series).unwrap(),
+            (expected_output, 0, Some(perfdata))
+        );
+
+        // Test: Default output, single time series, WARNING, host object, with performance data.
+        let time_series = vec![TimeSeries {
+            labels: label_set[0].clone(),
+            value: 9.34534534,
+        }];
+        let expected_output =
+            "[UP] PromQL query returned one result within the warning range (9.35 in @0:10)"
+                .to_string();
+        let perfdata = vec![format!(
+            "'{}/{}'={}ms;@0:10;0:20;;",
+            mapping.name,
+            checksums[0].clone(),
+            9.34534534
+        )];
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output, 0, Some(perfdata))
+        );
+    }
+
+    #[test]
+    fn test_process_query_result_for_service_objects_with_warning() {
+        let label_set = seed_labels();
+        let checksums = seed_checksums();
+        let values = [0.0, 0.0, 0.0, 5.1238712, 0.0, 0.0, 0.0, 0.0];
+        let time_series = label_set
+            .iter()
+            .zip(values.iter())
+            .map(|(labels, value)| TimeSeries {
+                labels: labels.clone(),
+                value: *value,
+            })
+            .collect::<Vec<TimeSeries>>();
+
+        let mut mapping = seed_mapping();
+        mapping.service = Some("bar".to_string());
+        mapping.thresholds.warning = Some(NagiosRange::from("@10").unwrap());
+        mapping.thresholds.critical = Some(NagiosRange::from("20").unwrap());
+
+        // Test: Default output, multiple time series, WARNING, service object, with performance data.
+        let expected_output = "[WARNING] PromQL query returned multiple results within the warning range (values 0.00..=5.12 overlap with @0:10)".to_string();
+        let perfdata = values
+            .iter()
+            .zip(checksums.iter())
+            .map(|(value, checksum)| {
+                format!("'{}/{}'={};@0:10;0:20;;", mapping.name, checksum, value)
+            })
+            .collect::<Vec<String>>();
+        assert_eq!(
+            process_query_result(&mapping, time_series).unwrap(),
+            (expected_output, 1, Some(perfdata))
+        );
+
+        // Test: Default output, single time series, WARNING, service object, with performance data.
+        let time_series = vec![TimeSeries {
+            labels: label_set[0].clone(),
+            value: 9.34534534,
+        }];
+        let expected_output =
+            "[WARNING] PromQL query returned one result within the warning range (9.35 in @0:10)"
+                .to_string();
+        let perfdata = vec![format!(
+            "'{}/{}'={};@0:10;0:20;;",
+            mapping.name,
+            checksums[0].clone(),
+            9.34534534
+        )];
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output, 1, Some(perfdata))
+        );
+    }
+
+    #[test]
+    fn test_process_query_result_for_host_objects_with_critical() {
+        let label_set = seed_labels();
+        let checksums = seed_checksums();
+        let values = [0.0, 0.0, 0.0, 5.1238712, 0.0, 0.0, 25.4534534, 0.0];
+        let time_series = label_set
+            .iter()
+            .zip(values.iter())
+            .map(|(labels, value)| TimeSeries {
+                labels: labels.clone(),
+                value: *value,
+            })
+            .collect::<Vec<TimeSeries>>();
+
+        let mut mapping = seed_mapping();
+        mapping.thresholds.warning = Some(NagiosRange::from("@10").unwrap());
+        mapping.thresholds.critical = Some(NagiosRange::from("@20:30").unwrap());
+
+        // Test: Default output, multiple time series, CRITICAL, host object, with performance data.
+        let expected_output = "[DOWN] PromQL query returned multiple results within the critical range (values 0.00..=25.45 overlap with @20:30)".to_string();
+        let perfdata = values
+            .iter()
+            .zip(checksums.iter())
+            .map(|(value, checksum)| {
+                format!("'{}/{}'={};@0:10;@20:30;;", mapping.name, checksum, value)
+            })
+            .collect::<Vec<String>>();
+        assert_eq!(
+            process_query_result(&mapping, time_series).unwrap(),
+            (expected_output, 1, Some(perfdata))
+        );
+
+        // Test: Default output, single time series, CRITICAL, host object, with performance data.
+        mapping.thresholds.warning = None;
+        let time_series = vec![TimeSeries {
+            labels: label_set[0].clone(),
+            value: 28.34534534,
+        }];
+        let expected_output =
+            "[DOWN] PromQL query returned one result within the critical range (28.35 in @20:30)"
+                .to_string();
+        let perfdata = vec![format!(
+            "'{}/{}'={};;@20:30;;",
+            mapping.name,
+            checksums[0].clone(),
+            28.34534534
+        )];
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output, 1, Some(perfdata))
+        );
+    }
+
+    #[test]
+    fn test_process_query_result_for_service_objects_with_critical() {
+        let label_set = seed_labels();
+        let checksums = seed_checksums();
+        let values = [0.0, 0.0, 0.0, 5.1238712, 0.0, 0.0, 25.4534534, 0.0];
+        let time_series = label_set
+            .iter()
+            .zip(values.iter())
+            .map(|(labels, value)| TimeSeries {
+                labels: labels.clone(),
+                value: *value,
+            })
+            .collect::<Vec<TimeSeries>>();
+
+        let mut mapping = seed_mapping();
+        mapping.service = Some("bar".to_string());
+        mapping.thresholds.warning = Some(NagiosRange::from("@10").unwrap());
+        mapping.thresholds.critical = Some(NagiosRange::from("@20:30").unwrap());
+
+        // Test: Default output, multiple time series, CRITICAL, service object, with performance data.
+        let expected_output = "[CRITICAL] PromQL query returned multiple results within the critical range (values 0.00..=25.45 overlap with @20:30)".to_string();
+        let perfdata = values
+            .iter()
+            .zip(checksums.iter())
+            .map(|(value, checksum)| {
+                format!("'{}/{}'={};@0:10;@20:30;;", mapping.name, checksum, value)
+            })
+            .collect::<Vec<String>>();
+        assert_eq!(
+            process_query_result(&mapping, time_series).unwrap(),
+            (expected_output, 2, Some(perfdata))
+        );
+
+        // Test: Default output, single time series, CRITICAL, service object, with performance data.
+        mapping.thresholds.warning = None;
+        let time_series = vec![TimeSeries {
+            labels: label_set[0].clone(),
+            value: 28.34534534,
+        }];
+        let expected_output =
+            "[CRITICAL] PromQL query returned one result within the critical range (28.35 in @20:30)"
+                .to_string();
+        let perfdata = vec![format!(
+            "'{}/{}'={};;@20:30;;",
+            mapping.name,
+            checksums[0].clone(),
+            28.34534534
+        )];
+        assert_eq!(
+            process_query_result(&mapping, time_series.clone()).unwrap(),
+            (expected_output, 2, Some(perfdata))
         );
     }
 }

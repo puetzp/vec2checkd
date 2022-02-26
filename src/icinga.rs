@@ -285,7 +285,7 @@ pub mod plugin_output {
                 // critical threshold was given.
                 let crit_range = mapping.thresholds.critical.as_ref().unwrap().to_string();
                 format!(
-                    "[{}] PromQL query returned one result within the critical range ({} in {})",
+                    "[{}] PromQL query returned one result within the critical range ({:.2?} in {})",
                     exit_status, value, crit_range
                 )
             }
@@ -294,7 +294,7 @@ pub mod plugin_output {
                 // warning threshold was given.
                 let warn_range = mapping.thresholds.warning.as_ref().unwrap().to_string();
                 format!(
-                    "[{}] PromQL query returned one result within the warning range ({} in {})",
+                    "[{}] PromQL query returned one result within the warning range ({:.2?} in {})",
                     exit_status, value, warn_range
                 )
             }
@@ -337,7 +337,7 @@ pub mod plugin_output {
                 // critical threshold was given.
                 let crit_range = mapping.thresholds.critical.as_ref().unwrap().to_string();
                 format!(
-                    "[{}] PromQL query returned multiple results within the critical range (values {:?} overlap with {})",
+                    "[{}] PromQL query returned multiple results within the critical range (values {:.2?} overlap with {})",
                     exit_status, value_range, crit_range
                 )
             }
@@ -346,7 +346,7 @@ pub mod plugin_output {
                 // warning threshold was given.
                 let warn_range = mapping.thresholds.warning.as_ref().unwrap().to_string();
                 format!(
-                    "[{}] PromQL query returned multiple results within the warning range (values {:?} overlap with {})",
+                    "[{}] PromQL query returned multiple results within the warning range (values {:.2?} overlap with {})",
                     exit_status, value_range, warn_range
                 )
             }
@@ -572,7 +572,7 @@ mod tests {
             performance_data: PerformanceData::default(),
         };
         let result =
-            "[DOWN] PromQL query returned one result within the critical range (15 in @10:20)"
+            "[DOWN] PromQL query returned one result within the critical range (15.00 in @10:20)"
                 .to_string();
         assert_eq!(
             format_default_single_item(&mapping, 15.0, 2, "DOWN".to_string()),
@@ -596,8 +596,9 @@ mod tests {
             plugin_output: None,
             performance_data: PerformanceData::default(),
         };
-        let result = "[UP] PromQL query returned one result within the warning range (5 in @0:10)"
-            .to_string();
+        let result =
+            "[UP] PromQL query returned one result within the warning range (5.00 in @0:10)"
+                .to_string();
         assert_eq!(
             format_default_single_item(&mapping, 5.0, 1, "UP".to_string()),
             result
@@ -644,7 +645,7 @@ mod tests {
             performance_data: PerformanceData::default(),
         };
         let result =
-            "[CRITICAL] PromQL query returned one result within the critical range (15 in @10:20)"
+            "[CRITICAL] PromQL query returned one result within the critical range (15.00 in @10:20)"
                 .to_string();
         assert_eq!(
             format_default_single_item(&mapping, 15.0, 2, "CRITICAL".to_string()),
@@ -669,7 +670,7 @@ mod tests {
             performance_data: PerformanceData::default(),
         };
         let result =
-            "[WARNING] PromQL query returned one result within the warning range (5 in @0:10)"
+            "[WARNING] PromQL query returned one result within the warning range (5.00 in @0:10)"
                 .to_string();
         assert_eq!(
             format_default_single_item(&mapping, 5.0, 1, "WARNING".to_string()),
