@@ -79,7 +79,7 @@ A "mapping" defines a PromQL query to be executed and how to map the query resul
 mappings:
   # Give each mapping a descriptive name as you would to a Prometheus recording or alerting rule.
   '<name>':
-    # Probably self-explanatory. Specify a PromQL query to execute against the HTTP API.
+    # Probably self-explanatory. Specify a PromQL query to send to the Prometheus HTTP API.
     # REQUIRED.
     query: '<promql_query>'
 
@@ -92,11 +92,11 @@ mappings:
     # OPTIONAL.
     service: '<service_object>'
 
-    # Check interval or how often á mapping is processed in seconds. Must be in the range 10..=3600.
+    # Check interval or how often á mapping is processed (in seconds). Must be in the range 10..=3600.
     # OPTIONAL, default 60.
     interval: <check_interval_in_seconds>
 
-    # Use warning and critical thresholds to check the PromQL query result value and determine the Icinga host/service state.
+    # Use warning and critical thresholds to check every value in each time series in the PromQL result and determine the overall Icinga host/service state.
     # Each threshold must be a Nagios range.
     # OPTIONAL.
     thresholds:
@@ -106,7 +106,7 @@ mappings:
       # OPTIONAL.
       critical: '<nagios_range>'
 
-    # Used to customize the "plugin output" (in nagios-speak) when the default output does not suffice.
+    # Used to customize output when the default output does not suffice.
     # OPTIONAL.
     plugin_output: '<custom_output>'
 
