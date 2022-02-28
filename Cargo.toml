@@ -7,6 +7,7 @@ keywords = [ "icinga", "prometheus", "api", "promql", "nagios" ]
 description = "Execute PromQL queries and send results as passive check results to Icinga2"
 readme = "README.md"
 license = "MIT"
+repository = "https://github.com/puetzp/vec2checkd"
 
 [dependencies]
 yaml-rust = "0.4"
