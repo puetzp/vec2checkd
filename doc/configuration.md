@@ -27,15 +27,21 @@ First of all some clarifications how PromQL query results are mapped to passive 
 
 ### Prometheus
 
-At this point the Prometheus section only allows setting the `host` to send PromQL queries to.
+The `prometheus` section of the configuration has the following structure.
 
 ```yaml
 prometheus:
   # The URL at which the server is reachable in order to execute queries against the HTTP API.
-  # Default: 'http://localhost:9090'
+  # OPTIONAL, default: 'http://localhost:9090'
   # Example:
   host: 'https://prometheus.example.com:9090'
+
+  # Specify proxy settings.
+  # OPTIONAL.
+  proxy: <proxy_section>
 ```
+
+For details on proxy usage see the section on [proxy settings](configuration.md#proxy).
 
 ### Icinga
 
@@ -48,6 +54,10 @@ icinga:
   # OPTIONAL, default: 'https://localhost:5665'
   # Example:
   host: 'https://satellite1.icinga.local'
+
+  # Specify proxy settings.
+  # OPTIONAL.
+  proxy: <proxy_section>
 
   # If no trust relationship between the system and the self-signed Icinga root certificate has been established by some means, the location of the certificate must be provided here.
   # OPTIONAL.
@@ -70,6 +80,36 @@ icinga:
 ```
 
 Note that the Icinga ApiUser username and password (Basic auth.) may also be read from the environment using the variables **V2C_ICINGA_USERNAME** and **V2C_ICINGA_PASSWORD** respectively. When the username and password are defined in both the environment and the configuration file, the values from the environment take precedence over the YAML parameters.
+
+For details on proxy usage see the section on [proxy settings](configuration.md#proxy).
+
+### Proxy
+
+Proxy settings can be configured in the `prometheus` and `icinga` sections. This is the general structure:
+
+```yaml
+proxy:
+  # Ignore any proxy settings set in this file or via environment variables.
+  # OPTIONAL, default: false.
+  ignore: true|false
+
+  # Specify a proxy for HTTP requests.
+  # OPTIONAL.
+  http: http://pro.xy
+
+  # Specify a proxy for HTTPS requests.
+  # OPTIONAL.
+  https: http://pro.xy
+```
+
+By default both the Prometheus and Icinga clients read the common environment variables as well (that is HTTP_PROXY, HTTPS_PROXY and their lowercase pendants). However perhaps only one client is actually supposed to communicate to either API via a proxy server.<br>
+The above section allows to account for that and can be used in various ways:
+* when environment variables are set (e.g. in the systemd unit file) configure one client (Prometheus or Icinga) to ignore the environment by setting `proxy.ignore: true`.
+* do not set any environment variables but explicitly enable proxy usage for either Prometheus or Icinga by setting e.g. `proxy.http: http://pro.xy`.
+
+**NOTE:** One possibly counter-intuitive trait of the Prometheus and Icinga clients is that by specifying _one_ proxy variable explicitly in the configuration (e.g. `proxy.https: ...`) _disables_ the use of environment variables altogether.<br>
+Example: Consider you configure `prometheus.host: http://prometheus.example.com`, `prometheus.proxy.https: http://pro.xy` and a system proxy `HTTP_PROXY=http://pro.xy`. Then latter will not be used to connect to `http://prometheus.example.com` as a proxy was explicitly configured in the configuration. And the former does not apply as only HTTPS requests are proxied.<br>
+Or to quote the [library reference](https://docs.rs/reqwest/0.11.9/reqwest/struct.ClientBuilder.html#method.proxy): "Adding a proxy will disable the automatic usage of the “system” proxy."
 
 ### Mappings
 

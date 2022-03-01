@@ -24,7 +24,7 @@ impl IcingaClient {
     /// with the restrictions described by Icinga; ref:
     /// * https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/#security
     /// * https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/#authentication
-    pub fn new(config: &IcingaConfig) -> Result<Self, anyhow::Error> {
+    pub fn new(config: IcingaConfig) -> Result<Self, anyhow::Error> {
         let mut builder = match &config.authentication {
             IcingaAuth::Basic(_) => reqwest::Client::builder(),
             IcingaAuth::X509(auth) => {
@@ -72,6 +72,18 @@ impl IcingaClient {
 
             builder = builder.add_root_certificate(cert_obj);
         };
+
+        if config.proxy.ignore {
+            builder = builder.no_proxy();
+        } else {
+            if let Some(http_proxy) = config.proxy.http {
+                builder = builder.proxy(http_proxy);
+            }
+
+            if let Some(https_proxy) = config.proxy.https {
+                builder = builder.proxy(https_proxy);
+            }
+        }
 
         let client = builder.build()?;
 

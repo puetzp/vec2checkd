@@ -264,12 +264,14 @@ impl Data {
 
 pub(crate) struct PromConfig {
     pub host: String,
+    pub proxy: ProxyConfig,
 }
 
 pub(crate) struct IcingaConfig {
     pub host: String,
     pub ca_cert: Option<PathBuf>,
     pub authentication: IcingaAuth,
+    pub proxy: ProxyConfig,
 }
 
 pub(crate) enum IcingaAuth {
@@ -286,6 +288,13 @@ pub(crate) struct IcingaBasicAuth {
 pub(crate) struct IcingaX509Auth {
     pub client_cert: PathBuf,
     pub client_key: PathBuf,
+}
+
+#[derive(Default)]
+pub(crate) struct ProxyConfig {
+    pub ignore: bool,
+    pub http: Option<reqwest::Proxy>,
+    pub https: Option<reqwest::Proxy>,
 }
 
 #[derive(Debug, Clone)]

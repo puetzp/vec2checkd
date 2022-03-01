@@ -2,6 +2,7 @@ mod config;
 mod error;
 mod helpers;
 mod icinga;
+mod prometheus;
 mod types;
 mod util;
 
@@ -10,10 +11,8 @@ use crate::types::Mapping;
 use crate::util::*;
 use gumdrop::Options;
 use log::{debug, error, info, warn};
-use prometheus_http_query::Client as PromClient;
 use std::fs::File;
 use std::io::Read;
-use std::str::FromStr;
 use std::time::Instant;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -100,7 +99,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 std::process::exit(1);
             }
         };
-        match PromClient::from_str(&c.host) {
+        match prometheus::create_client(c) {
             Ok(clt) => clt,
             Err(e) => {
                 error!("Failed to initialize Prometheus API client: {:#}", e);
@@ -118,7 +117,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 std::process::exit(1);
             }
         };
-        match IcingaClient::new(&c) {
+        match IcingaClient::new(c) {
             Ok(clt) => clt,
             Err(e) => {
                 error!("Failed to initialize Icinga API client: {:#}", e);
