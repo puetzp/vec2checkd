@@ -93,23 +93,16 @@ proxy:
   # OPTIONAL, default: false.
   ignore: true|false
 
-  # Specify a proxy for HTTP requests.
+  # Specify a proxy URL.
   # OPTIONAL.
-  http: http://pro.xy
-
-  # Specify a proxy for HTTPS requests.
-  # OPTIONAL.
-  https: http://pro.xy
+  host: http://pro.xy:3128
 ```
 
 By default both the Prometheus and Icinga clients read the common environment variables as well (that is HTTP_PROXY, HTTPS_PROXY and their lowercase pendants). However perhaps only one client is actually supposed to communicate to either API via a proxy server.<br>
 The above section allows to account for that and can be used in various ways:
 * when environment variables are set (e.g. in the systemd unit file) configure one client (Prometheus or Icinga) to ignore the environment by setting `proxy.ignore: true`.
-* do not set any environment variables but explicitly enable proxy usage for either Prometheus or Icinga by setting e.g. `proxy.http: http://pro.xy`.
-
-**NOTE:** One possibly counter-intuitive trait of the Prometheus and Icinga clients is that by specifying _one_ proxy variable explicitly in the configuration (e.g. `proxy.https: ...`) _disables_ the use of environment variables altogether.<br>
-Example: Consider you configure `prometheus.host: http://prometheus.example.com`, `prometheus.proxy.https: http://pro.xy` and a system proxy `HTTP_PROXY=http://pro.xy`. Then latter will not be used to connect to `http://prometheus.example.com` as a proxy was explicitly configured in the configuration. And the former does not apply as only HTTPS requests are proxied.<br>
-Or to quote the [library reference](https://docs.rs/reqwest/0.11.9/reqwest/struct.ClientBuilder.html#method.proxy): "Adding a proxy will disable the automatic usage of the “system” proxy."
+* do not set any environment variables but explicitly enable proxy usage for either Prometheus or Icinga by setting e.g. `proxy.host: http://pro.xy`.
+* override the environment as setting a proxy explicitly in the configuration takes precedence.
 
 ### Mappings
 

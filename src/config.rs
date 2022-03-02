@@ -6,6 +6,7 @@ use nagios_range::NagiosRange;
 use std::env;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+use url::Url;
 use yaml_rust::yaml::{Hash, Yaml};
 
 /// Parses a single mapping from YAML configuration.
@@ -255,7 +256,7 @@ pub(crate) fn parse_mappings(config: Hash) -> Result<Vec<Mapping>, anyhow::Error
     }
 }
 
-fn parse_proxy_section(config: &Hash) -> Result<ProxyConfig, anyhow::Error> {
+fn parse_proxy_section(config: &Hash, scheme: &str) -> Result<ProxyConfig, anyhow::Error> {
     let ignore = config
         .get(&Yaml::from_str("ignore"))
         .unwrap_or(&Yaml::Boolean(false))
@@ -265,37 +266,26 @@ fn parse_proxy_section(config: &Hash) -> Result<ProxyConfig, anyhow::Error> {
             kind: "boolean",
         })?;
 
-    let http = match config.get(&Yaml::from_str("http")) {
+    let host = match config.get(&Yaml::from_str("host")) {
         Some(val) => {
             let raw = val.as_str().ok_or(ParseFieldError {
-                field: String::from("proxy.http"),
+                field: String::from("proxy.host"),
                 kind: "string",
             })?;
-            Some(reqwest::Proxy::http(raw)?)
+            match scheme {
+                "http" => Some(reqwest::Proxy::http(raw)?),
+                "https" => Some(reqwest::Proxy::https(raw)?),
+                _ => unreachable!(),
+            }
         }
         None => None,
     };
 
-    let https = match config.get(&Yaml::from_str("https")) {
-        Some(val) => {
-            let raw = val.as_str().ok_or(ParseFieldError {
-                field: String::from("proxy.https"),
-                kind: "string",
-            })?;
-            Some(reqwest::Proxy::https(raw)?)
-        }
-        None => None,
-    };
-
-    Ok(ProxyConfig {
-        ignore,
-        http,
-        https,
-    })
+    Ok(ProxyConfig { ignore, host })
 }
 
 pub(crate) fn parse_prom_section(config: &Hash) -> Result<PromConfig, anyhow::Error> {
-    let default_host = "http://localhost:9090";
+    let default_host = Url::parse("http://localhost:9090")?;
 
     match config.get(&Yaml::from_str("prometheus")) {
         Some(section) => {
@@ -304,15 +294,20 @@ pub(crate) fn parse_prom_section(config: &Hash) -> Result<PromConfig, anyhow::Er
                 kind: "hash",
             })?;
 
-            let host = prometheus
-                .get(&Yaml::from_str("host"))
-                .unwrap_or(&Yaml::from_str(default_host))
-                .as_str()
-                .ok_or(ParseFieldError {
-                    field: String::from("prometheus.host"),
-                    kind: "string",
-                })?
-                .to_string();
+            let host = match prometheus.get(&Yaml::from_str("host")) {
+                Some(h) => {
+                    let raw = h.as_str().ok_or(ParseFieldError {
+                        field: String::from("prometheus.host"),
+                        kind: "string",
+                    })?;
+                    let url = Url::parse(raw)?;
+                    match url.scheme() {
+                        "http" | "https" => url,
+                        _ => bail!("the scheme in URL '{}' from field 'prometheus.host' must be either 'http' or 'https'", url)
+                    }
+                }
+                None => default_host,
+            };
 
             let proxy = match prometheus.get(&Yaml::from_str("proxy")) {
                 Some(p) => p
@@ -322,14 +317,14 @@ pub(crate) fn parse_prom_section(config: &Hash) -> Result<PromConfig, anyhow::Er
                         kind: "hash",
                     })
                     .map_err(anyhow::Error::msg)
-                    .and_then(parse_proxy_section)?,
+                    .and_then(|s| parse_proxy_section(s, host.scheme()))?,
                 None => ProxyConfig::default(),
             };
 
             Ok(PromConfig { host, proxy })
         }
         None => Ok(PromConfig {
-            host: default_host.to_string(),
+            host: default_host,
             proxy: ProxyConfig::default(),
         }),
     }
@@ -350,15 +345,32 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
             })?
     };
 
-    let host = section
-        .get(&Yaml::from_str("host"))
-        .unwrap_or(&Yaml::from_str("https://localhost:5665"))
-        .as_str()
-        .ok_or(ParseFieldError {
-            field: String::from("icinga.host"),
-            kind: "string",
-        })?
-        .to_string();
+    let host = match section.get(&Yaml::from_str("host")) {
+        Some(h) => {
+            let raw = h.as_str().ok_or(ParseFieldError {
+                field: String::from("icinga.host"),
+                kind: "string",
+            })?;
+            let url = Url::parse(raw)?;
+            match url.scheme() {
+                "http" | "https" => url,
+                _ => bail!("the scheme in URL '{}' from field 'prometheus.host' must be either 'http' or 'https'", url)
+            }
+        }
+        None => Url::parse("https://localhost:5665")?,
+    };
+
+    let proxy = match section.get(&Yaml::from_str("proxy")) {
+        Some(p) => p
+            .as_hash()
+            .ok_or(ParseFieldError {
+                field: String::from("icinga.proxy"),
+                kind: "hash",
+            })
+            .map_err(anyhow::Error::msg)
+            .and_then(|s| parse_proxy_section(s, host.scheme()))?,
+        None => ProxyConfig::default(),
+    };
 
     let ca_cert = match section.get(&Yaml::from_str("ca_cert")) {
         Some(cert) => Some(
@@ -491,18 +503,6 @@ pub(crate) fn parse_icinga_section(config: &Hash) -> Result<IcingaConfig, anyhow
                     "invalid value in 'icinga.authentication.method', must be either 'basic-auth' or 'x509'"
                 )
         }
-    };
-
-    let proxy = match section.get(&Yaml::from_str("proxy")) {
-        Some(p) => p
-            .as_hash()
-            .ok_or(ParseFieldError {
-                field: String::from("icinga.proxy"),
-                kind: "hash",
-            })
-            .map_err(anyhow::Error::msg)
-            .and_then(parse_proxy_section)?,
-        None => ProxyConfig::default(),
     };
 
     Ok(IcingaConfig {

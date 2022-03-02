@@ -6,16 +6,12 @@ pub(crate) fn create_client(config: crate::types::PromConfig) -> Result<Client, 
     if config.proxy.ignore {
         builder = builder.no_proxy();
     } else {
-        if let Some(http_proxy) = config.proxy.http {
-            builder = builder.proxy(http_proxy);
-        }
-
-        if let Some(https_proxy) = config.proxy.https {
-            builder = builder.proxy(https_proxy);
+        if let Some(proxy_host) = config.proxy.host {
+            builder = builder.proxy(proxy_host);
         }
     }
 
     let base_client = builder.build()?;
 
-    Ok(Client::from(base_client, &config.host)?)
+    Ok(Client::from(base_client, &config.host.to_string())?)
 }

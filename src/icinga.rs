@@ -24,7 +24,7 @@ impl IcingaClient {
     /// with the restrictions described by Icinga; ref:
     /// * https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/#security
     /// * https://icinga.com/docs/icinga-2/latest/doc/12-icinga2-api/#authentication
-    pub fn new(config: IcingaConfig) -> Result<Self, anyhow::Error> {
+    pub fn new(mut config: IcingaConfig) -> Result<Self, anyhow::Error> {
         let mut builder = match &config.authentication {
             IcingaAuth::Basic(_) => reqwest::Client::builder(),
             IcingaAuth::X509(auth) => {
@@ -76,26 +76,19 @@ impl IcingaClient {
         if config.proxy.ignore {
             builder = builder.no_proxy();
         } else {
-            if let Some(http_proxy) = config.proxy.http {
-                builder = builder.proxy(http_proxy);
-            }
-
-            if let Some(https_proxy) = config.proxy.https {
-                builder = builder.proxy(https_proxy);
+            if let Some(proxy_host) = config.proxy.host {
+                builder = builder.proxy(proxy_host);
             }
         }
 
         let client = builder.build()?;
 
-        let url = {
-            let mut tmp_url = url::Url::parse(&config.host)
-                .with_context(|| "failed to parse HTTP API URL")?
-                .to_string();
-            tmp_url.push_str("v1/actions/process-check-result");
-            tmp_url
-        };
+        config.host.set_path("v1/actions/process-check-result");
 
-        debug!("Set API URL to send passive check results to {}", url);
+        debug!(
+            "Set API URL to send passive check results to {}",
+            config.host
+        );
 
         let basic_auth = match &config.authentication {
             IcingaAuth::Basic(auth) => Some(auth.clone()),
@@ -104,7 +97,7 @@ impl IcingaClient {
 
         Ok(IcingaClient {
             client,
-            url,
+            url: config.host.to_string(),
             basic_auth,
         })
     }

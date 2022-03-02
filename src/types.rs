@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::default::Default;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+use url::Url;
 
 /// A pair of thresholds that may be provided by each mapping
 /// in order to determine exit values for each time series in
@@ -263,12 +264,12 @@ impl Data {
 }
 
 pub(crate) struct PromConfig {
-    pub host: String,
+    pub host: Url,
     pub proxy: ProxyConfig,
 }
 
 pub(crate) struct IcingaConfig {
-    pub host: String,
+    pub host: Url,
     pub ca_cert: Option<PathBuf>,
     pub authentication: IcingaAuth,
     pub proxy: ProxyConfig,
@@ -293,8 +294,7 @@ pub(crate) struct IcingaX509Auth {
 #[derive(Default)]
 pub(crate) struct ProxyConfig {
     pub ignore: bool,
-    pub http: Option<reqwest::Proxy>,
-    pub https: Option<reqwest::Proxy>,
+    pub host: Option<reqwest::Proxy>,
 }
 
 #[derive(Debug, Clone)]
