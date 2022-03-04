@@ -1,6 +1,6 @@
 [package]
 name = "vec2checkd"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Peter Sebastian Puetz <peter.puetz@itenos.de>"]
 edition = "2021"
 keywords = [ "icinga", "prometheus", "api", "promql", "nagios" ]
