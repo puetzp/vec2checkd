@@ -134,5 +134,4 @@ Providing a means to create objects would necessitate to re-create most of the l
 ## ToDos
 
 * Extend the Prometheus configuration object with authentication options (as the server may be shielded by a reverse proxy).
-* Extend the Prometheus and Icinga configuration objects with custom proxy options (setting HTTPS_PROXY and HTTP_PROXY in the environment would cause *both* clients to connect to Prometheus/Icinga2 via this proxy).
 * Also provide a means to interpret a PromQL query result of type "matrix".

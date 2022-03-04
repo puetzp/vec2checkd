@@ -98,11 +98,7 @@ proxy:
   host: http://pro.xy:3128
 ```
 
-By default both the Prometheus and Icinga clients read the common environment variables as well (that is HTTP_PROXY, HTTPS_PROXY and their lowercase pendants). However perhaps only one client is actually supposed to communicate to either API via a proxy server.<br>
-The above section allows to account for that and can be used in various ways:
-* when environment variables are set (e.g. in the systemd unit file) configure one client (Prometheus or Icinga) to ignore the environment by setting `proxy.ignore: true`.
-* do not set any environment variables but explicitly enable proxy usage for either Prometheus or Icinga by setting e.g. `proxy.host: http://pro.xy`.
-* override the environment as setting a proxy explicitly in the configuration takes precedence.
+By default both the Prometheus and Icinga clients read the common environment variables as well (that is HTTP_PROXY, HTTPS_PROXY, NO_PROXY and their lowercase pendants). When a proxy is specified in the configuration file the aforementioned environment variables are ignored.
 
 ### Mappings
 
