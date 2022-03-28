@@ -155,14 +155,13 @@ pub(crate) async fn execute_task(
             mapping.name, exec_start
         );
 
-        let prom_query = mapping.query.to_string();
-
-        debug!("'{}': execute PromQL query '{}'", mapping.name, prom_query);
-
-        let vector = prometheus_http_query::InstantVector(prom_query);
+        debug!(
+            "'{}': execute PromQL query '{}'",
+            mapping.name, mapping.query
+        );
 
         let query_result = prom_client
-            .query(vector, None, None)
+            .query(&mapping.query, None, None)
             .await
             .with_context(|| "failed to execute PromQL query")?;
 
